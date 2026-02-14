@@ -1,0 +1,169 @@
+{
+  "name": "NGO.tools RAG Chatbot",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "chat-trigger-001",
+      "name": "Chat Trigger",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "ngo-tools-chat"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "Du bist der digitale Assistent von NGO.tools – dem All-in-One Werkzeugkasten für Vereine und Nonprofits.\n\nDeine Aufgaben:\n- Beantworte Fragen zu NGO.tools Funktionen (Spendenmanagement, Finanzverwaltung, Website-Management)\n- Hilf bei technischen Fragen zur Plattform\n- Verweise bei komplexen Anliegen an das Team (kontakt@ngo.tools)\n\nWichtige Regeln:\n- Antworte immer auf Deutsch\n- Sei freundlich, hilfsbereit und präzise\n- Nutze ausschließlich die bereitgestellte Knowledge Base\n- Wenn du etwas nicht weißt, sag ehrlich: 'Das kann ich leider nicht beantworten. Bitte kontaktiere unser Team direkt.'\n- Erfinde NIEMALS Informationen\n\nHinweis für Nutzer: Du bist eine KI-basierte Assistenz. Für persönliche Beratung steht das NGO.tools Team zur Verfügung."
+        }
+      },
+      "id": "ai-agent-001",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [500, 400]
+    },
+    {
+      "parameters": {
+        "model": "gemini-2.0-flash",
+        "options": {
+          "temperature": 0.3,
+          "maxOutputTokens": 1024
+        }
+      },
+      "id": "llm-gemini-001",
+      "name": "Google Gemini Chat",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [500, 600],
+      "credentials": {
+        "googleGeminiApi": {
+          "id": "GEMINI_CREDENTIAL_ID",
+          "name": "Google Gemini API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "Durchsuche die NGO.tools Knowledge Base nach relevanten Informationen zu Funktionen, Preisen, FAQs und technischer Dokumentation.",
+        "topK": 5
+      },
+      "id": "vectorstore-001",
+      "name": "PGVector Knowledge Base",
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
+      "typeVersion": 1,
+      "position": [700, 600],
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_CREDENTIAL_ID",
+          "name": "Cloudron PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "text-embedding-004",
+        "options": {}
+      },
+      "id": "embedding-001",
+      "name": "Google Gemini Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [900, 700],
+      "credentials": {
+        "googleGeminiApi": {
+          "id": "GEMINI_CREDENTIAL_ID",
+          "name": "Google Gemini API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.sessionId }}",
+        "contextWindowLength": 10
+      },
+      "id": "memory-001",
+      "name": "Window Buffer Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.2,
+      "position": [300, 600]
+    }
+  ],
+  "connections": {
+    "Chat Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PGVector Knowledge Base": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "PGVector Knowledge Base",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "NGO.tools",
+      "id": "tag-ngo-001"
+    },
+    {
+      "name": "RAG",
+      "id": "tag-rag-001"
+    },
+    {
+      "name": "Chatbot",
+      "id": "tag-chat-001"
+    }
+  ]
+}

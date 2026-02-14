@@ -1,0 +1,259 @@
+{
+  "name": "NGO.tools Knowledge Base Ingestion",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger-001",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [200, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://ngo.tools/sitemap.xml",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "http-sitemap-001",
+      "name": "Fetch Sitemap",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [400, 400]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Parse sitemap XML and extract URLs\nconst xml = $input.first().json.data;\nconst urlRegex = /<loc>(.*?)<\\/loc>/g;\nconst urls = [];\nlet match;\n\nwhile ((match = urlRegex.exec(xml)) !== null) {\n  urls.push({ url: match[1] });\n}\n\nreturn urls;"
+      },
+      "id": "code-parse-001",
+      "name": "Parse Sitemap URLs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 400]
+    },
+    {
+      "parameters": {
+        "batchSize": 5,
+        "options": {
+          "reset": false
+        }
+      },
+      "id": "batch-001",
+      "name": "Batch Processing",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [800, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "http-page-001",
+      "name": "Fetch Page Content",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 400]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Extract text content from HTML, remove scripts/styles\nconst html = $json.data || '';\nconst url = $json.url || '';\n\n// Strip HTML tags, scripts, styles\nlet text = html\n  .replace(/<script[^>]*>[\\s\\S]*?<\\/script>/gi, '')\n  .replace(/<style[^>]*>[\\s\\S]*?<\\/style>/gi, '')\n  .replace(/<nav[^>]*>[\\s\\S]*?<\\/nav>/gi, '')\n  .replace(/<footer[^>]*>[\\s\\S]*?<\\/footer>/gi, '')\n  .replace(/<header[^>]*>[\\s\\S]*?<\\/header>/gi, '')\n  .replace(/<[^>]+>/g, ' ')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\n// Extract title\nconst titleMatch = html.match(/<title>(.*?)<\\/title>/i);\nconst title = titleMatch ? titleMatch[1] : url;\n\nreturn {\n  pageContent: text.substring(0, 8000),\n  metadata: {\n    source: url,\n    title: title,\n    ingested_at: new Date().toISOString(),\n    type: 'webpage'\n  }\n};"
+      },
+      "id": "code-extract-001",
+      "name": "Extract & Clean Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 400]
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "tableName": "n8n_vectors_ngo_tools"
+      },
+      "id": "vectorstore-insert-001",
+      "name": "Store in PGVector",
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
+      "typeVersion": 1,
+      "position": [1400, 400],
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_CREDENTIAL_ID",
+          "name": "Cloudron PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "text-embedding-004",
+        "options": {}
+      },
+      "id": "embedding-ingest-001",
+      "name": "Google Gemini Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [1400, 600],
+      "credentials": {
+        "googleGeminiApi": {
+          "id": "GEMINI_CREDENTIAL_ID",
+          "name": "Google Gemini API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chunkSize": 1000,
+        "chunkOverlap": 200
+      },
+      "id": "text-splitter-001",
+      "name": "Recursive Text Splitter",
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [1200, 600]
+    },
+    {
+      "parameters": {
+        "content": "=Knowledge Base Ingestion abgeschlossen.\n\n✅ {{ $input.all().length }} Seiten verarbeitet\n📅 {{ $now.toISO() }}",
+        "options": {}
+      },
+      "id": "set-summary-001",
+      "name": "Zusammenfassung",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1600, 400]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Sitemap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Sitemap": {
+      "main": [
+        [
+          {
+            "node": "Parse Sitemap URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Sitemap URLs": {
+      "main": [
+        [
+          {
+            "node": "Batch Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Batch Processing": {
+      "main": [
+        [
+          {
+            "node": "Fetch Page Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Page Content": {
+      "main": [
+        [
+          {
+            "node": "Extract & Clean Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract & Clean Text": {
+      "main": [
+        [
+          {
+            "node": "Store in PGVector",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store in PGVector": {
+      "main": [
+        [
+          {
+            "node": "Zusammenfassung",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Zusammenfassung": {
+      "main": [
+        [
+          {
+            "node": "Batch Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Store in PGVector",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Store in PGVector",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "NGO.tools",
+      "id": "tag-ngo-002"
+    },
+    {
+      "name": "Ingestion",
+      "id": "tag-ingest-001"
+    }
+  ]
+}

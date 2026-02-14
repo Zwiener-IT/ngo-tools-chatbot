@@ -1,0 +1,46 @@
+<!--
+  NGO.tools Chatbot Widget
+
+  Diesen Code-Snippet in die NGO.tools Website einfügen,
+  idealerweise vor dem schließenden </body> Tag.
+
+  Voraussetzung: n8n Chatbot-Workflow muss aktiv sein.
+  Webhook-URL anpassen!
+-->
+
+<link href="https://cdn.jsdelivr.net/npm/@n8n/chat/dist/style.css" rel="stylesheet" />
+
+<script type="module">
+  import { createChat } from 'https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js';
+
+  createChat({
+    // ⚠️ ANPASSEN: Deine n8n Webhook-URL
+    webhookUrl: 'https://n8n.zwiener.it/webhook/ngo-tools-chat/chat',
+
+    mode: 'window',
+    chatInputKey: 'chatInput',
+    chatSessionKey: 'sessionId',
+    showWelcomeScreen: true,
+
+    initialMessages: [
+      'Hallo! 👋 Ich bin der digitale Assistent von NGO.tools.',
+      'Wie kann ich dir helfen? Frag mich zu Funktionen, Preisen oder technischen Themen.'
+    ],
+
+    i18n: {
+      en: {
+        title: 'NGO.tools Hilfe',
+        subtitle: 'KI-gestützter Assistent für Vereine',
+        footer: '⚡ KI-Assistent · Keine persönliche Beratung',
+        getStarted: 'Neue Unterhaltung',
+        inputPlaceholder: 'Stelle deine Frage...',
+      },
+    },
+
+    theme: {
+      // NGO.tools Brand-Farben anpassen
+      primaryColor: '#4F46E5',
+      secondaryColor: '#F3F4F6',
+    }
+  });
+</script>

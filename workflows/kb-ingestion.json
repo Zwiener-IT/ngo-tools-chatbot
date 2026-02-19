@@ -2,190 +2,111 @@
   "name": "NGO.tools Knowledge Base Ingestion",
   "nodes": [
     {
-      "parameters": {},
-      "id": "manual-trigger-001",
-      "name": "Manual Trigger",
-      "type": "n8n-nodes-base.manualTrigger",
-      "typeVersion": 1,
-      "position": [200, 400]
-    },
-    {
       "parameters": {
-        "method": "GET",
-        "url": "https://ngo.tools/sitemap.xml",
-        "options": {
-          "timeout": 30000
-        }
+        "httpMethod": "POST",
+        "path": "ngo-tools-ingest",
+        "options": {}
       },
-      "id": "http-sitemap-001",
-      "name": "Fetch Sitemap",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [400, 400]
+      "id": "webhook-trigger-001",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-112, -16],
+      "webhookId": "ngo-tools-ingest"
     },
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// Parse sitemap XML and extract URLs\nconst xml = $input.first().json.data;\nconst urlRegex = /<loc>(.*?)<\\/loc>/g;\nconst urls = [];\nlet match;\n\nwhile ((match = urlRegex.exec(xml)) !== null) {\n  urls.push({ url: match[1] });\n}\n\nreturn urls;"
+        "jsCode": "// Extract documents from webhook body and prepare for Document Loader\nconst body = $input.first().json.body || $input.first().json;\nconst docs = body.documents || [];\nconst items = [];\n\nfor (const doc of docs) {\n  const docJson = {\n    content: doc.content || '',\n    title: doc.title || 'Untitled',\n    source: doc.route_uri || doc.file_path || '',\n    doc_type: doc.doc_type || 'unknown',\n    entity_name: doc.entity_name || ''\n  };\n  \n  items.push({\n    json: {\n      data: JSON.stringify(docJson),\n      metadata_title: doc.title || 'Untitled',\n      metadata_source: doc.route_uri || doc.file_path || '',\n      metadata_doc_type: doc.doc_type || 'unknown',\n      metadata_entity_name: doc.entity_name || ''\n    }\n  });\n}\n\nreturn items;"
       },
-      "id": "code-parse-001",
-      "name": "Parse Sitemap URLs",
+      "id": "code-format-001",
+      "name": "Format Documents",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [600, 400]
-    },
-    {
-      "parameters": {
-        "batchSize": 5,
-        "options": {
-          "reset": false
-        }
-      },
-      "id": "batch-001",
-      "name": "Batch Processing",
-      "type": "n8n-nodes-base.splitInBatches",
-      "typeVersion": 3,
-      "position": [800, 400]
-    },
-    {
-      "parameters": {
-        "method": "GET",
-        "url": "={{ $json.url }}",
-        "options": {
-          "timeout": 15000
-        }
-      },
-      "id": "http-page-001",
-      "name": "Fetch Page Content",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1000, 400]
-    },
-    {
-      "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "// Extract text content from HTML, remove scripts/styles\nconst html = $json.data || '';\nconst url = $json.url || '';\n\n// Strip HTML tags, scripts, styles\nlet text = html\n  .replace(/<script[^>]*>[\\s\\S]*?<\\/script>/gi, '')\n  .replace(/<style[^>]*>[\\s\\S]*?<\\/style>/gi, '')\n  .replace(/<nav[^>]*>[\\s\\S]*?<\\/nav>/gi, '')\n  .replace(/<footer[^>]*>[\\s\\S]*?<\\/footer>/gi, '')\n  .replace(/<header[^>]*>[\\s\\S]*?<\\/header>/gi, '')\n  .replace(/<[^>]+>/g, ' ')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\n// Extract title\nconst titleMatch = html.match(/<title>(.*?)<\\/title>/i);\nconst title = titleMatch ? titleMatch[1] : url;\n\nreturn {\n  pageContent: text.substring(0, 8000),\n  metadata: {\n    source: url,\n    title: title,\n    ingested_at: new Date().toISOString(),\n    type: 'webpage'\n  }\n};"
-      },
-      "id": "code-extract-001",
-      "name": "Extract & Clean Text",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1200, 400]
+      "position": [160, -16]
     },
     {
       "parameters": {
         "mode": "insert",
-        "tableName": "n8n_vectors_ngo_tools"
+        "tableName": "n8n_vectors_ngo_tools",
+        "options": {}
       },
       "id": "vectorstore-insert-001",
       "name": "Store in PGVector",
       "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
       "typeVersion": 1,
-      "position": [1400, 400],
+      "position": [480, -16],
       "credentials": {
         "postgres": {
           "id": "POSTGRES_CREDENTIAL_ID",
-          "name": "Cloudron PostgreSQL"
+          "name": "Postgres account"
         }
       }
     },
     {
       "parameters": {
-        "model": "text-embedding-004",
+        "dataType": "json",
+        "jsonData": "={{ $json.data }}",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              { "name": "title", "value": "={{ $json.metadata_title }}" },
+              { "name": "source", "value": "={{ $json.metadata_source }}" },
+              { "name": "doc_type", "value": "={{ $json.metadata_doc_type }}" },
+              { "name": "entity_name", "value": "={{ $json.metadata_entity_name }}" }
+            ]
+          }
+        }
+      },
+      "id": "doc-loader-001",
+      "name": "Default Data Loader",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1,
+      "position": [280, 200]
+    },
+    {
+      "parameters": {
+        "model": "text-embedding-3-small",
         "options": {}
       },
-      "id": "embedding-ingest-001",
-      "name": "Google Gemini Embeddings",
-      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "id": "embedding-openai-001",
+      "name": "OpenAI Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
       "typeVersion": 1,
-      "position": [1400, 600],
+      "position": [480, 272],
       "credentials": {
-        "googleGeminiApi": {
-          "id": "GEMINI_CREDENTIAL_ID",
-          "name": "Google Gemini API"
+        "openAiApi": {
+          "id": "OPENAI_CREDENTIAL_ID",
+          "name": "OpenAi account"
         }
       }
     },
     {
       "parameters": {
         "chunkSize": 1000,
-        "chunkOverlap": 200
+        "chunkOverlap": 200,
+        "options": {}
       },
       "id": "text-splitter-001",
       "name": "Recursive Text Splitter",
       "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
       "typeVersion": 1,
-      "position": [1200, 600]
-    },
-    {
-      "parameters": {
-        "content": "=Knowledge Base Ingestion abgeschlossen.\n\n✅ {{ $input.all().length }} Seiten verarbeitet\n📅 {{ $now.toISO() }}",
-        "options": {}
-      },
-      "id": "set-summary-001",
-      "name": "Zusammenfassung",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [1600, 400]
+      "position": [80, 320]
     }
   ],
   "connections": {
-    "Manual Trigger": {
+    "Webhook Trigger": {
       "main": [
         [
           {
-            "node": "Fetch Sitemap",
+            "node": "Format Documents",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Fetch Sitemap": {
-      "main": [
-        [
-          {
-            "node": "Parse Sitemap URLs",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse Sitemap URLs": {
-      "main": [
-        [
-          {
-            "node": "Batch Processing",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Batch Processing": {
-      "main": [
-        [
-          {
-            "node": "Fetch Page Content",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Fetch Page Content": {
-      "main": [
-        [
-          {
-            "node": "Extract & Clean Text",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Extract & Clean Text": {
+    "Format Documents": {
       "main": [
         [
           {
@@ -196,29 +117,18 @@
         ]
       ]
     },
-    "Store in PGVector": {
-      "main": [
+    "Default Data Loader": {
+      "ai_document": [
         [
           {
-            "node": "Zusammenfassung",
-            "type": "main",
+            "node": "Store in PGVector",
+            "type": "ai_document",
             "index": 0
           }
         ]
       ]
     },
-    "Zusammenfassung": {
-      "main": [
-        [
-          {
-            "node": "Batch Processing",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Google Gemini Embeddings": {
+    "OpenAI Embeddings": {
       "ai_embedding": [
         [
           {
@@ -233,7 +143,7 @@
       "ai_textSplitter": [
         [
           {
-            "node": "Store in PGVector",
+            "node": "Default Data Loader",
             "type": "ai_textSplitter",
             "index": 0
           }
@@ -247,13 +157,7 @@
   },
   "staticData": null,
   "tags": [
-    {
-      "name": "NGO.tools",
-      "id": "tag-ngo-002"
-    },
-    {
-      "name": "Ingestion",
-      "id": "tag-ingest-001"
-    }
+    { "name": "NGO.tools" },
+    { "name": "Ingestion" }
   ]
 }

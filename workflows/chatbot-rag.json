@@ -2,12 +2,14 @@
   "name": "NGO.tools RAG Chatbot",
   "nodes": [
     {
-      "parameters": {},
+      "parameters": {
+        "options": {}
+      },
       "id": "chat-trigger-001",
       "name": "Chat Trigger",
       "type": "@n8n/n8n-nodes-langchain.chatTrigger",
       "typeVersion": 1.1,
-      "position": [200, 400],
+      "position": [-32, 32],
       "webhookId": "ngo-tools-chat"
     },
     {
@@ -20,25 +22,25 @@
       "name": "AI Agent",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 1.7,
-      "position": [500, 400]
+      "position": [272, 32]
     },
     {
       "parameters": {
-        "model": "gemini-2.0-flash",
+        "model": "gpt-4o-mini",
         "options": {
           "temperature": 0.3,
-          "maxOutputTokens": 1024
+          "maxTokens": 1024
         }
       },
-      "id": "llm-gemini-001",
-      "name": "Google Gemini Chat",
-      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
-      "typeVersion": 1,
-      "position": [500, 600],
+      "id": "llm-openai-001",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [160, 224],
       "credentials": {
-        "googleGeminiApi": {
-          "id": "GEMINI_CREDENTIAL_ID",
-          "name": "Google Gemini API"
+        "openAiApi": {
+          "id": "OPENAI_CREDENTIAL_ID",
+          "name": "OpenAi account"
         }
       }
     },
@@ -46,34 +48,35 @@
       "parameters": {
         "mode": "retrieve-as-tool",
         "toolDescription": "Durchsuche die NGO.tools Knowledge Base nach relevanten Informationen zu Funktionen, Preisen, FAQs und technischer Dokumentation.",
-        "topK": 5
+        "topK": 5,
+        "options": {}
       },
       "id": "vectorstore-001",
       "name": "PGVector Knowledge Base",
       "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
       "typeVersion": 1,
-      "position": [700, 600],
+      "position": [560, 160],
       "credentials": {
         "postgres": {
           "id": "POSTGRES_CREDENTIAL_ID",
-          "name": "Cloudron PostgreSQL"
+          "name": "Postgres account"
         }
       }
     },
     {
       "parameters": {
-        "model": "text-embedding-004",
+        "model": "text-embedding-3-small",
         "options": {}
       },
-      "id": "embedding-001",
-      "name": "Google Gemini Embeddings",
-      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "id": "embedding-openai-001",
+      "name": "OpenAI Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
       "typeVersion": 1,
-      "position": [900, 700],
+      "position": [704, 336],
       "credentials": {
-        "googleGeminiApi": {
-          "id": "GEMINI_CREDENTIAL_ID",
-          "name": "Google Gemini API"
+        "openAiApi": {
+          "id": "OPENAI_CREDENTIAL_ID",
+          "name": "OpenAi account"
         }
       }
     },
@@ -87,7 +90,7 @@
       "name": "Window Buffer Memory",
       "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
       "typeVersion": 1.2,
-      "position": [300, 600]
+      "position": [368, 224]
     }
   ],
   "connections": {
@@ -102,7 +105,7 @@
         ]
       ]
     },
-    "Google Gemini Chat": {
+    "OpenAI Chat Model": {
       "ai_languageModel": [
         [
           {
@@ -124,7 +127,7 @@
         ]
       ]
     },
-    "Google Gemini Embeddings": {
+    "OpenAI Embeddings": {
       "ai_embedding": [
         [
           {
@@ -153,17 +156,8 @@
   },
   "staticData": null,
   "tags": [
-    {
-      "name": "NGO.tools",
-      "id": "tag-ngo-001"
-    },
-    {
-      "name": "RAG",
-      "id": "tag-rag-001"
-    },
-    {
-      "name": "Chatbot",
-      "id": "tag-chat-001"
-    }
+    { "name": "NGO.tools" },
+    { "name": "RAG" },
+    { "name": "Chatbot" }
   ]
 }

@@ -3,43 +3,60 @@
   "nodes": [
     {
       "parameters": {
-        "options": {}
+        "public": true,
+        "options": {
+          "allowedOrigins": "*"
+        }
       },
-      "id": "chat-trigger-001",
-      "name": "Chat Trigger",
+      "id": "a87862da-2ef7-4c63-a751-06135160cd9d",
+      "name": "When chat message received",
       "type": "@n8n/n8n-nodes-langchain.chatTrigger",
-      "typeVersion": 1.1,
-      "position": [-32, 32],
+      "typeVersion": 1.4,
+      "position": [
+        -32,
+        32
+      ],
       "webhookId": "ngo-tools-chat"
     },
     {
       "parameters": {
         "options": {
-          "systemMessage": "Du bist der digitale Assistent von NGO.tools – dem All-in-One Werkzeugkasten für Vereine und Nonprofits.\n\nDeine Aufgaben:\n- Beantworte Fragen zu NGO.tools Funktionen (Spendenmanagement, Finanzverwaltung, Website-Management)\n- Hilf bei technischen Fragen zur Plattform\n- Verweise bei komplexen Anliegen an das Team (kontakt@ngo.tools)\n\nWichtige Regeln:\n- Antworte immer auf Deutsch\n- Sei freundlich, hilfsbereit und präzise\n- Nutze ausschließlich die bereitgestellte Knowledge Base\n- Wenn du etwas nicht weißt, sag ehrlich: 'Das kann ich leider nicht beantworten. Bitte kontaktiere unser Team direkt.'\n- Erfinde NIEMALS Informationen\n\nHinweis für Nutzer: Du bist eine KI-basierte Assistenz. Für persönliche Beratung steht das NGO.tools Team zur Verfügung."
+          "systemMessage": "# NGOli - ngo.tools Support Assistant\n\nDu bist NGOli, der hilfreiche Support-Assistent f\u00fcr die NGO.tools-Plattform.\n\n## Deine Rolle\nDu unterst\u00fctzt Vereine, NGOs und gemeinn\u00fctzige Organisationen bei allen Fragen rund um die ngo.tools-Plattform - eine All-in-One-L\u00f6sung f\u00fcr Vereinsverwaltung, Mitgliedermanagement, Spendenverwaltung und Kommunikation.\n\n## Dein Verhalten\n- Freundlich & pers\u00f6nlich: Sprich Nutzer mit \"du\" an, sei hilfsbereit aber nicht \u00fcbertrieben enthusiastisch\n- Pr\u00e4zise & konkret: Gib klare Antworten mit konkreten Schritten, keine vagen Aussagen\n- Knowledge Base first: Nutze IMMER die Knowledge Base f\u00fcr technische Fragen zur Plattform\n- Deutsch als Standard: Antworte auf Deutsch, au\u00dfer der Nutzer schreibt auf Englisch\n\n## Was du kannst\n- Erkl\u00e4ren wie Features funktionieren (Mitgliederverwaltung, Spenden, Events, etc.)\n- Schritt-f\u00fcr-Schritt Anleitungen geben\n- Technische Fragen zur API, Integrationen und Automatisierung beantworten\n- Bei Problemen helfen und L\u00f6sungen vorschlagen\n- Preise und Konditionen erkl\u00e4ren\n\n## Wichtige Plattform-Infos\n\n### Betreiber & Kontakt\n- Betreiber: Help NGO gGmbH (gemeinn\u00fctzig anerkannt)\n- Support-Email: kontakt@ngo.tools\n- Telefon: +49 7721 4024339\n- Gesch\u00e4ftsf\u00fchrer: Friedrich Rominger\n- Adresse: Gaisbergring 10, D-78086 Brigachtal\n\n### Preise (zzgl. 7% MwSt.)\nGrundmodule:\n- Kontakte: 10\u20ac/Monat\n- Buchhaltung E\u00dcR (Basis): 20\u20ac/Monat\n- Buchhaltung Bilanz (erweitert): 10\u20ac/Monat\n- Newsletter: 10\u20ac/Monat\n- Spenden: 10\u20ac/Monat\n- Webseite: 15\u20ac/Monat\n- Email-Postfach: 2\u20ac/Monat (pro Postfach)\n- Formulare/Umfragen: 10\u20ac/Monat\n- Veranstaltungen: 15\u20ac/Monat\n- Workflows: 20\u20ac/Monat\n\nKostenlos:\n- Mitgliederverwaltung\n- Projekte\n- Kontaktsegment-Kommunikation\n- Aufgaben (Beta)\n- Budgets (Beta)\n\nSonderkonditionen:\n- Cloudservice (Nextcloud): 10\u20ac/Monat + 50\u20ac einmalig\n- WordPress-Webseite: 10\u20ac/Monat + 50\u20ac einmalig\n- Fundraising (Verlosung): 50\u20ac/Monat\n\nWichtige Infos:\n- 30 Tage kostenlos testen\n- Keine Mindestlaufzeit (monatlich k\u00fcndbar)\n- Keine Einrichtungsgeb\u00fchr (au\u00dfer bei Cloudservice & WordPress)\n- Mehrbenutzerf\u00e4hig (beliebig viele Nutzer)\n- 50% Rabatt f\u00fcr Vereine < 50.000 EUR Vorjahresumsatz (auf Grundpreise)\n\n### Kernfunktionen\n- Zentrale Kontaktverwaltung: Alle Mitglieder, Spender, Partner an einem Ort\n- DSGVO-konform: Automatische Datenschutz-Compliance\n- Automatisierung: KI-gest\u00fctzte Buchhaltung, Auto-Spendenbescheinigungen\n- Synchronisation: Alle Module arbeiten zusammen (CRM, Newsletter, Spenden, etc.)\n- Modularer Aufbau: Nur zahlen, was du brauchst\n\n## Was du NICHT kannst\n- Keine \u00c4nderungen in der Datenbank vornehmen\n- Keine Passw\u00f6rter zur\u00fccksetzen (-> Support-Team kontaktieren)\n- Keine individuellen Kundenkonten einsehen\n- Keine Zahlungsinformationen bearbeiten\n\n## Bei Unsicherheit\nWenn du etwas nicht in der Knowledge Base findest:\n\"Ich bin mir nicht ganz sicher. Am besten kontaktierst du das Support-Team direkt unter kontakt@ngo.tools oder rufst an: +49 7721 4024339\"\n\n## Ton & Stil\nGut: \"Das kostet 10\u20ac/Monat. Du kannst 30 Tage kostenlos testen.\"\nGut: \"Das Feature findest du unter Kontakte -> Segmente...\"\nGut: \"Daf\u00fcr gibt es zwei M\u00f6glichkeiten: 1) ... oder 2) ...\"\n\nSchlecht: \u00dcbertriebene Freundlichkeit, Floskeln, Emojis (au\u00dfer Nutzer nutzt sie)\n\nSei hilfsbereit, direkt und kompetent."
         }
       },
-      "id": "ai-agent-001",
+      "id": "9288a943-26c6-4ee4-b2b6-e3e9f95964ed",
       "name": "AI Agent",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 1.7,
-      "position": [272, 32]
+      "position": [
+        272,
+        32
+      ]
     },
     {
       "parameters": {
-        "model": "gpt-4o-mini",
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "gpt-4o-mini"
+        },
+        "builtInTools": {},
         "options": {
-          "temperature": 0.3,
-          "maxTokens": 1024
+          "maxTokens": 1024,
+          "temperature": 0.3
         }
       },
-      "id": "llm-openai-001",
+      "id": "b19affab-efec-438a-b241-d61b6e3b40dd",
       "name": "OpenAI Chat Model",
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1.2,
-      "position": [160, 224],
+      "typeVersion": 1.3,
+      "position": [
+        160,
+        224
+      ],
       "credentials": {
         "openAiApi": {
-          "id": "OPENAI_CREDENTIAL_ID",
+          "id": "XhcWlA6JrLM2ptmU",
           "name": "OpenAi account"
         }
       }
@@ -47,18 +64,23 @@
     {
       "parameters": {
         "mode": "retrieve-as-tool",
+        "toolName": "ngo_tools_knowledge_base",
         "toolDescription": "Durchsuche die NGO.tools Knowledge Base nach relevanten Informationen zu Funktionen, Preisen, FAQs und technischer Dokumentation.",
+        "tableName": "n8n_vectors_ngo_tools",
         "topK": 5,
         "options": {}
       },
-      "id": "vectorstore-001",
+      "id": "1ef78a06-2ac3-4ef4-9619-10d521c0ca7d",
       "name": "PGVector Knowledge Base",
       "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
       "typeVersion": 1,
-      "position": [560, 160],
+      "position": [
+        608,
+        160
+      ],
       "credentials": {
         "postgres": {
-          "id": "POSTGRES_CREDENTIAL_ID",
+          "id": "sd9vc72XPsJhxW8I",
           "name": "Postgres account"
         }
       }
@@ -68,14 +90,17 @@
         "model": "text-embedding-3-small",
         "options": {}
       },
-      "id": "embedding-openai-001",
+      "id": "37e6ca95-7e9b-488f-be50-b77280ca5a00",
       "name": "OpenAI Embeddings",
       "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
       "typeVersion": 1,
-      "position": [704, 336],
+      "position": [
+        864,
+        336
+      ],
       "credentials": {
         "openAiApi": {
-          "id": "OPENAI_CREDENTIAL_ID",
+          "id": "XhcWlA6JrLM2ptmU",
           "name": "OpenAi account"
         }
       }
@@ -86,20 +111,34 @@
         "sessionKey": "={{ $json.sessionId }}",
         "contextWindowLength": 10
       },
-      "id": "memory-001",
+      "id": "d214fbb5-fb08-4ce5-b202-8d634f4758df",
       "name": "Window Buffer Memory",
       "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
       "typeVersion": 1.2,
-      "position": [368, 224]
+      "position": [
+        368,
+        224
+      ]
     }
   ],
   "connections": {
-    "Chat Trigger": {
-      "main": [
+    "PGVector Knowledge Base": {
+      "ai_tool": [
         [
           {
             "node": "AI Agent",
-            "type": "main",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
             "index": 0
           }
         ]
@@ -116,17 +155,6 @@
         ]
       ]
     },
-    "PGVector Knowledge Base": {
-      "ai_tool": [
-        [
-          {
-            "node": "AI Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "OpenAI Embeddings": {
       "ai_embedding": [
         [
@@ -138,26 +166,33 @@
         ]
       ]
     },
-    "Window Buffer Memory": {
-      "ai_memory": [
+    "When chat message received": {
+      "main": [
         [
           {
             "node": "AI Agent",
-            "type": "ai_memory",
+            "type": "main",
             "index": 0
           }
         ]
       ]
     }
   },
-  "pinData": {},
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "callerPolicy": "workflowsFromSameOwner"
   },
-  "staticData": null,
   "tags": [
-    { "name": "NGO.tools" },
-    { "name": "RAG" },
-    { "name": "Chatbot" }
+    {
+      "name": "Chatbot"
+    },
+    {
+      "name": "RAG"
+    },
+    {
+      "name": "NGO.tools"
+    }
   ]
 }

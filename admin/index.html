@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NGO.tools Chatbot Admin</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <style>
+    :root {
+      --spacing-compact: 0.75rem;
+    }
+    body { max-width: 900px; margin: 0 auto; padding: 1rem; }
+    nav[role="tablist"] {
+      display: flex; gap: 0; border-bottom: 2px solid var(--pico-muted-border-color);
+      margin-bottom: 1.5rem;
+    }
+    nav[role="tablist"] button {
+      flex: 1; border: none; border-bottom: 3px solid transparent;
+      background: none; padding: 0.75rem 1rem; cursor: pointer;
+      font-weight: 600; color: var(--pico-muted-color);
+      border-radius: 0;
+    }
+    nav[role="tablist"] button.active {
+      color: var(--pico-primary); border-bottom-color: var(--pico-primary);
+    }
+    nav[role="tablist"] button:hover { color: var(--pico-primary); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .status-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .status-card {
+      text-align: center; padding: 1.5rem;
+      background: var(--pico-card-background-color);
+      border-radius: var(--pico-border-radius);
+      border: 1px solid var(--pico-muted-border-color);
+    }
+    .status-card .number { font-size: 2rem; font-weight: 700; color: var(--pico-primary); }
+    .status-card .label { font-size: 0.85rem; color: var(--pico-muted-color); margin-top: 0.25rem; }
+    .source-table { width: 100%; font-size: 0.9rem; }
+    .source-table th { position: sticky; top: 0; background: var(--pico-background-color); }
+    .log {
+      background: var(--pico-code-background-color); padding: 1rem;
+      border-radius: var(--pico-border-radius); font-family: monospace;
+      font-size: 0.85rem; max-height: 200px; overflow-y: auto;
+      white-space: pre-wrap; margin-top: 1rem;
+    }
+    .log:empty { display: none; }
+    .badge {
+      display: inline-block; padding: 0.15rem 0.5rem; border-radius: 1rem;
+      font-size: 0.75rem; font-weight: 600;
+    }
+    .badge-website { background: #dbeafe; color: #1e40af; }
+    .badge-admin { background: #dcfce7; color: #166534; }
+    .badge-unknown { background: #f3f4f6; color: #374151; }
+    header { margin-bottom: 1.5rem; }
+    header h1 { margin-bottom: 0.25rem; }
+    header p { color: var(--pico-muted-color); margin: 0; }
+    .api-key-bar {
+      display: flex; gap: 0.5rem; align-items: center;
+      margin-bottom: 1.5rem; padding: 0.75rem;
+      background: var(--pico-card-background-color);
+      border-radius: var(--pico-border-radius);
+      border: 1px solid var(--pico-muted-border-color);
+    }
+    .api-key-bar label { white-space: nowrap; font-weight: 600; margin: 0; }
+    .api-key-bar input { margin: 0; }
+    textarea { min-height: 150px; }
+    .upload-area {
+      border: 2px dashed var(--pico-muted-border-color);
+      border-radius: var(--pico-border-radius);
+      padding: 2rem; text-align: center; cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .upload-area:hover, .upload-area.dragover {
+      border-color: var(--pico-primary);
+    }
+    .upload-area input[type="file"] { display: none; }
+    .mode-toggle { display: flex; gap: 0; margin-bottom: 1rem; }
+    .mode-toggle button {
+      flex: 1; border-radius: 0;
+    }
+    .mode-toggle button:first-child { border-radius: var(--pico-border-radius) 0 0 var(--pico-border-radius); }
+    .mode-toggle button:last-child { border-radius: 0 var(--pico-border-radius) var(--pico-border-radius) 0; }
+    .mode-toggle button.outline { background: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>NGO.tools Chatbot Admin</h1>
+    <p>Knowledge Base verwalten, URLs crawlen, Status prüfen</p>
+  </header>
+
+  <div class="api-key-bar">
+    <label for="apiKey">n8n API Key:</label>
+    <input type="password" id="apiKey" placeholder="API Key eingeben..." style="flex:1">
+    <button id="saveKeyBtn" class="outline" style="width:auto">Speichern</button>
+  </div>
+
+  <nav role="tablist">
+    <button class="active" data-tab="documents">Dokumente</button>
+    <button data-tab="crawler">URL Crawlen</button>
+    <button data-tab="status">Status</button>
+  </nav>
+
+  <!-- Tab: Dokumente -->
+  <div id="tab-documents" class="tab-content active">
+    <div class="mode-toggle">
+      <button id="mode-json" class="outline">JSON Upload</button>
+      <button id="mode-text">Freitext</button>
+    </div>
+
+    <!-- JSON Upload -->
+    <div id="doc-json" style="display:none">
+      <div class="upload-area" id="dropZone">
+        <p><strong>JSON-Datei hierher ziehen</strong></p>
+        <p style="font-size:0.85rem; color:var(--pico-muted-color)">oder klicken zum Auswählen</p>
+        <input type="file" id="jsonFile" accept=".json">
+        <p id="fileName" style="font-size:0.85rem; margin-top:0.5rem"></p>
+      </div>
+      <button id="uploadJsonBtn" style="margin-top:1rem; width:100%">JSON hochladen</button>
+    </div>
+
+    <!-- Freitext -->
+    <div id="doc-text">
+      <label for="docTitle">Titel</label>
+      <input type="text" id="docTitle" placeholder="z.B. Mitgliederverwaltung FAQ">
+      <label for="docContent">Inhalt</label>
+      <textarea id="docContent" placeholder="Dokumentinhalt hier eingeben..."></textarea>
+      <label for="docType">Typ</label>
+      <select id="docType">
+        <option value="manual">Handbuch / Doku</option>
+        <option value="faq">FAQ</option>
+        <option value="website">Website-Inhalt</option>
+        <option value="other">Sonstiges</option>
+      </select>
+      <button id="uploadTextBtn" style="width:100%">Dokument hochladen</button>
+    </div>
+
+    <div id="docLog" class="log"></div>
+  </div>
+
+  <!-- Tab: URL Crawlen -->
+  <div id="tab-crawler" class="tab-content">
+    <label for="crawlUrl">URL oder Sitemap-URL</label>
+    <input type="url" id="crawlUrl" placeholder="https://ngo.tools/preise/ oder https://ngo.tools/sitemap.xml">
+    <fieldset>
+      <label><input type="radio" name="crawlMode" value="single" checked> Einzelne Seite</label>
+      <label><input type="radio" name="crawlMode" value="sitemap"> Sitemap (alle Seiten)</label>
+    </fieldset>
+    <button id="crawlBtn" style="width:100%">Crawlen starten</button>
+    <div id="crawlLog" class="log"></div>
+  </div>
+
+  <!-- Tab: Status -->
+  <div id="tab-status" class="tab-content">
+    <button id="refreshStatus" style="width:100%; margin-bottom:1rem">Status laden</button>
+    <div class="status-grid">
+      <div class="status-card">
+        <div class="number" id="statChunks">-</div>
+        <div class="label">Chunks</div>
+      </div>
+      <div class="status-card">
+        <div class="number" id="statSources">-</div>
+        <div class="label">Quellen</div>
+      </div>
+      <div class="status-card">
+        <div class="number" id="statTypes">-</div>
+        <div class="label">Dokumenttypen</div>
+      </div>
+    </div>
+    <div style="max-height:400px; overflow-y:auto">
+      <table class="source-table">
+        <thead>
+          <tr><th>Titel</th><th>Typ</th><th>Chunks</th><th>Quelle</th></tr>
+        </thead>
+        <tbody id="statusTable"></tbody>
+      </table>
+    </div>
+    <div id="statusLog" class="log"></div>
+  </div>
+
+  <script>
+    // ---- Configuration ----
+    const N8N_BASE = 'https://n8n.zwiener.it/webhook';
+    const ENDPOINTS = {
+      ingest: `${N8N_BASE}/ngo-tools-ingest`,
+      crawl: `${N8N_BASE}/ngo-tools-crawl`,
+      status: `${N8N_BASE}/ngo-tools-kb-status`
+    };
+
+    // ---- API Key Management ----
+    const apiKeyInput = document.getElementById('apiKey');
+    apiKeyInput.value = localStorage.getItem('ngo-admin-apikey') || '';
+
+    document.getElementById('saveKeyBtn').addEventListener('click', () => {
+      localStorage.setItem('ngo-admin-apikey', apiKeyInput.value);
+      log('docLog', 'API Key gespeichert.');
+    });
+
+    function getHeaders() {
+      const key = apiKeyInput.value;
+      const headers = { 'Content-Type': 'application/json' };
+      if (key) headers['X-API-Key'] = key;
+      return headers;
+    }
+
+    // ---- Tab Navigation ----
+    document.querySelectorAll('nav[role="tablist"] button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('nav[role="tablist"] button').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+      });
+    });
+
+    // ---- Document Mode Toggle ----
+    const modeJson = document.getElementById('mode-json');
+    const modeText = document.getElementById('mode-text');
+    const docJson = document.getElementById('doc-json');
+    const docText = document.getElementById('doc-text');
+
+    function setDocMode(mode) {
+      if (mode === 'json') {
+        modeJson.classList.remove('outline');
+        modeText.classList.add('outline');
+        docJson.style.display = 'block';
+        docText.style.display = 'none';
+      } else {
+        modeText.classList.remove('outline');
+        modeJson.classList.add('outline');
+        docJson.style.display = 'none';
+        docText.style.display = 'block';
+      }
+    }
+
+    modeJson.addEventListener('click', () => setDocMode('json'));
+    modeText.addEventListener('click', () => setDocMode('text'));
+    setDocMode('text');
+
+    // ---- Logging ----
+    function log(elementId, message) {
+      const el = document.getElementById(elementId);
+      const time = new Date().toLocaleTimeString('de-DE');
+      el.textContent += `[${time}] ${message}\n`;
+      el.scrollTop = el.scrollHeight;
+    }
+
+    // ---- File Upload (Drag & Drop) ----
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('jsonFile');
+    const fileNameEl = document.getElementById('fileName');
+    let selectedFile = null;
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length) {
+        selectedFile = e.dataTransfer.files[0];
+        fileNameEl.textContent = selectedFile.name;
+      }
+    });
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length) {
+        selectedFile = fileInput.files[0];
+        fileNameEl.textContent = selectedFile.name;
+      }
+    });
+
+    // ---- JSON Upload ----
+    document.getElementById('uploadJsonBtn').addEventListener('click', async () => {
+      if (!selectedFile) { log('docLog', 'Keine Datei ausgewählt.'); return; }
+      const btn = document.getElementById('uploadJsonBtn');
+      btn.setAttribute('aria-busy', 'true');
+      btn.disabled = true;
+
+      try {
+        const text = await selectedFile.text();
+        const data = JSON.parse(text);
+        const docs = Array.isArray(data) ? data : (data.documents || [data]);
+        log('docLog', `${docs.length} Dokument(e) gefunden. Sende an Ingestion...`);
+
+        const resp = await fetch(ENDPOINTS.ingest, {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify({ documents: docs })
+        });
+
+        if (resp.ok) {
+          log('docLog', `Upload erfolgreich (${resp.status}).`);
+        } else {
+          log('docLog', `Fehler: ${resp.status} ${resp.statusText}`);
+        }
+      } catch (e) {
+        log('docLog', `Fehler: ${e.message}`);
+      } finally {
+        btn.removeAttribute('aria-busy');
+        btn.disabled = false;
+      }
+    });
+
+    // ---- Freitext Upload ----
+    document.getElementById('uploadTextBtn').addEventListener('click', async () => {
+      const title = document.getElementById('docTitle').value.trim();
+      const content = document.getElementById('docContent').value.trim();
+      const docType = document.getElementById('docType').value;
+
+      if (!title || !content) { log('docLog', 'Bitte Titel und Inhalt ausfüllen.'); return; }
+
+      const btn = document.getElementById('uploadTextBtn');
+      btn.setAttribute('aria-busy', 'true');
+      btn.disabled = true;
+
+      try {
+        const doc = { title, content, doc_type: docType, source: `manual:${title}` };
+        log('docLog', `Sende "${title}" an Ingestion...`);
+
+        const resp = await fetch(ENDPOINTS.ingest, {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify({ documents: [doc] })
+        });
+
+        if (resp.ok) {
+          log('docLog', `"${title}" erfolgreich hochgeladen.`);
+          document.getElementById('docTitle').value = '';
+          document.getElementById('docContent').value = '';
+        } else {
+          log('docLog', `Fehler: ${resp.status} ${resp.statusText}`);
+        }
+      } catch (e) {
+        log('docLog', `Fehler: ${e.message}`);
+      } finally {
+        btn.removeAttribute('aria-busy');
+        btn.disabled = false;
+      }
+    });
+
+    // ---- URL Crawler ----
+    document.getElementById('crawlBtn').addEventListener('click', async () => {
+      const url = document.getElementById('crawlUrl').value.trim();
+      const mode = document.querySelector('input[name="crawlMode"]:checked').value;
+
+      if (!url) { log('crawlLog', 'Bitte URL eingeben.'); return; }
+
+      const btn = document.getElementById('crawlBtn');
+      btn.setAttribute('aria-busy', 'true');
+      btn.disabled = true;
+
+      try {
+        log('crawlLog', `Starte ${mode === 'sitemap' ? 'Sitemap' : 'Einzel'}-Crawl: ${url}`);
+
+        const resp = await fetch(ENDPOINTS.crawl, {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify({ url, mode })
+        });
+
+        if (resp.ok) {
+          const data = await resp.json();
+          log('crawlLog', `Gestartet! ${data.message || 'Workflow läuft im Hintergrund.'}`);
+          log('crawlLog', 'Tipp: Prüfe den Status-Tab um den Fortschritt zu sehen.');
+        } else {
+          log('crawlLog', `Fehler: ${resp.status} ${resp.statusText}`);
+        }
+      } catch (e) {
+        log('crawlLog', `Fehler: ${e.message}`);
+      } finally {
+        btn.removeAttribute('aria-busy');
+        btn.disabled = false;
+      }
+    });
+
+    // ---- Status ----
+    document.getElementById('refreshStatus').addEventListener('click', loadStatus);
+
+    async function loadStatus() {
+      const btn = document.getElementById('refreshStatus');
+      btn.setAttribute('aria-busy', 'true');
+      btn.disabled = true;
+
+      try {
+        const resp = await fetch(ENDPOINTS.status, {
+          headers: getHeaders()
+        });
+
+        if (!resp.ok) {
+          log('statusLog', `Fehler: ${resp.status} ${resp.statusText}`);
+          return;
+        }
+
+        const data = await resp.json();
+
+        document.getElementById('statChunks').textContent = data.total_chunks || 0;
+        document.getElementById('statSources').textContent = data.unique_sources || 0;
+        document.getElementById('statTypes').textContent = data.doc_types || 0;
+
+        const tbody = document.getElementById('statusTable');
+        tbody.innerHTML = '';
+
+        const details = data.details || [];
+        for (const d of details) {
+          const tr = document.createElement('tr');
+          const badgeClass = d.doc_type === 'website' ? 'badge-website' :
+                             d.doc_type === 'admin' ? 'badge-admin' : 'badge-unknown';
+          tr.innerHTML = `
+            <td>${escHtml(d.title || '-')}</td>
+            <td><span class="badge ${badgeClass}">${escHtml(d.doc_type || '-')}</span></td>
+            <td>${d.chunks || 0}</td>
+            <td style="font-size:0.8rem; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap"
+                title="${escHtml(d.source || '')}">${escHtml(d.source || '-')}</td>
+          `;
+          tbody.appendChild(tr);
+        }
+
+        log('statusLog', `Status geladen: ${data.total_chunks} Chunks, ${data.unique_sources} Quellen.`);
+      } catch (e) {
+        log('statusLog', `Fehler: ${e.message}`);
+      } finally {
+        btn.removeAttribute('aria-busy');
+        btn.disabled = false;
+      }
+    }
+
+    function escHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>

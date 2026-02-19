@@ -1,0 +1,393 @@
+{
+  "name": "NGO.tools URL Crawler",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ngo-tools-crawl",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        0
+      ],
+      "webhookId": "ngo-tools-crawl"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.mode || $json.mode }}",
+              "rightValue": "sitemap",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "route-mode",
+      "name": "Route Mode",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Webhook Trigger').first().json.body.url || $('Webhook Trigger').first().json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "fetch-sitemap",
+      "name": "Fetch Sitemap",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        80,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Parse sitemap - handles both sitemap index and regular sitemap\n// For sitemap index: fetch each sub-sitemap and collect all page URLs\n// For regular sitemap: extract page URLs directly\nconst xml = $input.first().json.data;\nconst urls = [];\n\n// Check if this is a sitemap index\nconst isSitemapIndex = xml.includes('<sitemap>');\n\nif (isSitemapIndex) {\n  // For sitemap index, just extract the sub-sitemap URLs\n  // We'll fetch them via HTTP in the next step\n  const matches = xml.match(/<loc>([^<]+)<\\/loc>/g) || [];\n  for (const m of matches) {\n    const url = m.replace(/<\\/?loc>/g, '').trim();\n    // Only include page sitemaps, skip hook sitemaps etc\n    if (url.includes('page-sitemap')) {\n      urls.push({ json: { url, isSitemap: true } });\n    }\n  }\n} else {\n  // Regular sitemap - extract all page URLs\n  const matches = xml.match(/<loc>([^<]+)<\\/loc>/g) || [];\n  for (const m of matches) {\n    const url = m.replace(/<\\/?loc>/g, '').trim();\n    urls.push({ json: { url, isSitemap: false } });\n  }\n}\n\nreturn urls;"
+      },
+      "id": "parse-sitemap",
+      "name": "Parse Sitemap",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: { url: $('Webhook Trigger').first().json.body?.url || $('Webhook Trigger').first().json.url, isSitemap: false } };"
+      },
+      "id": "prep-single",
+      "name": "Prep Single URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "fetch-page",
+      "name": "Fetch Page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const html = $json.data || '';\nconst url = $json.url || '';\n\nlet cleaned = html\n  .replace(/<script[^>]*>[\\s\\S]*?<\\/script>/gi, '')\n  .replace(/<style[^>]*>[\\s\\S]*?<\\/style>/gi, '')\n  .replace(/<nav[^>]*>[\\s\\S]*?<\\/nav>/gi, '')\n  .replace(/<footer[^>]*>[\\s\\S]*?<\\/footer>/gi, '')\n  .replace(/<header[^>]*>[\\s\\S]*?<\\/header>/gi, '')\n  .replace(/<noscript[^>]*>[\\s\\S]*?<\\/noscript>/gi, '')\n  .replace(/<svg[^>]*>[\\s\\S]*?<\\/svg>/gi, '')\n  .replace(/<!--[\\s\\S]*?-->/g, '');\n\nlet title = '';\nconst titleMatch = cleaned.match(/<title[^>]*>([^<]+)<\\/title>/i);\nif (titleMatch) title = titleMatch[1].trim();\n\nlet description = '';\nconst metaMatch = cleaned.match(/<meta[^>]*name=[\"']description[\"'][^>]*content=[\"']([^\"']+)[\"']/i);\nif (metaMatch) description = metaMatch[1].trim();\n\ncleaned = cleaned\n  .replace(/<br\\s*\\/?>/gi, '\\n')\n  .replace(/<\\/p>/gi, '\\n\\n')\n  .replace(/<\\/div>/gi, '\\n')\n  .replace(/<\\/h[1-6]>/gi, '\\n\\n')\n  .replace(/<\\/li>/gi, '\\n')\n  .replace(/<li[^>]*>/gi, '- ')\n  .replace(/<[^>]+>/g, '')\n  .replace(/&nbsp;/g, ' ')\n  .replace(/&amp;/g, '&')\n  .replace(/&lt;/g, '<')\n  .replace(/&gt;/g, '>')\n  .replace(/&quot;/g, '\"')\n  .replace(/&#39;/g, \"'\")\n  .replace(/\\n{3,}/g, '\\n\\n')\n  .replace(/[ \\t]+/g, ' ')\n  .trim();\n\nconst content = (title ? `# ${title}\\n\\n` : '') + (description ? `${description}\\n\\n` : '') + cleaned;\n\nreturn {\n  json: {\n    data: JSON.stringify({ content, title: title || url, source: url, doc_type: 'website', entity_name: 'ngo.tools' }),\n    metadata_title: title || url,\n    metadata_source: url,\n    metadata_doc_type: 'website',\n    metadata_entity_name: 'ngo.tools',\n    url: url\n  }\n};"
+      },
+      "id": "html-to-text",
+      "name": "HTML to Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM n8n_vectors_ngo_tools WHERE metadata->>'source' = '{{ $json.url }}'"
+      },
+      "id": "passthrough",
+      "name": "Delete Existing",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1040,
+        -200
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "sd9vc72XPsJhxW8I",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "tableName": "n8n_vectors_ngo_tools",
+        "options": {}
+      },
+      "id": "vectorstore-insert",
+      "name": "Store in PGVector",
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "sd9vc72XPsJhxW8I",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "title",
+                "value": "={{ $json.metadata_title }}"
+              },
+              {
+                "name": "source",
+                "value": "={{ $json.metadata_source }}"
+              },
+              {
+                "name": "doc_type",
+                "value": "={{ $json.metadata_doc_type }}"
+              },
+              {
+                "name": "entity_name",
+                "value": "={{ $json.metadata_entity_name }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "doc-loader",
+      "name": "Default Data Loader",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1,
+      "position": [
+        1080,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "model": "text-embedding-3-small",
+        "options": {}
+      },
+      "id": "embedding-openai",
+      "name": "OpenAI Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        280
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "XhcWlA6JrLM2ptmU",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chunkSize": 1000,
+        "chunkOverlap": 200,
+        "options": {}
+      },
+      "id": "text-splitter",
+      "name": "Recursive Text Splitter",
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        880,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 1,
+        "unit": "seconds"
+      },
+      "id": "wait-for-delete",
+      "name": "Wait for Delete",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1040,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Route Mode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Mode": {
+      "main": [
+        [
+          {
+            "node": "Fetch Sitemap",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prep Single URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Sitemap": {
+      "main": [
+        [
+          {
+            "node": "Parse Sitemap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Sitemap": {
+      "main": [
+        [
+          {
+            "node": "Fetch Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Single URL": {
+      "main": [
+        [
+          {
+            "node": "Fetch Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Page": {
+      "main": [
+        [
+          {
+            "node": "HTML to Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML to Text": {
+      "main": [
+        [
+          {
+            "node": "Delete Existing",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Wait for Delete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Store in PGVector",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Store in PGVector",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Delete": {
+      "main": [
+        [
+          {
+            "node": "Store in PGVector",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

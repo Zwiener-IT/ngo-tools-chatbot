@@ -38,7 +38,7 @@
       "position": [480, -16],
       "credentials": {
         "postgres": {
-          "id": "POSTGRES_CREDENTIAL_ID",
+          "id": "sd9vc72XPsJhxW8I",
           "name": "Postgres account"
         }
       }
@@ -76,7 +76,7 @@
       "position": [480, 272],
       "credentials": {
         "openAiApi": {
-          "id": "OPENAI_CREDENTIAL_ID",
+          "id": "XhcWlA6JrLM2ptmU",
           "name": "OpenAi account"
         }
       }

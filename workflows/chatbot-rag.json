@@ -6,7 +6,7 @@
       "parameters": {
         "public": true,
         "options": {
-          "allowedOrigins": "*"
+          "allowedOrigins": "https://ngo.tools,https://www.ngo.tools"
         }
       },
       "id": "a87862da-2ef7-4c63-a751-06135160cd9d",

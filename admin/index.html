@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NGO.tools Chatbot Admin</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
   <style>
     :root {
       --spacing-compact: 0.75rem;
@@ -84,6 +85,11 @@
     .mode-toggle button:first-child { border-radius: var(--pico-border-radius) 0 0 var(--pico-border-radius); }
     .mode-toggle button:last-child { border-radius: 0 var(--pico-border-radius) var(--pico-border-radius) 0; }
     .mode-toggle button.outline { background: none; }
+    .file-warning {
+      background: #fef3c7; color: #92400e; padding: 0.5rem 0.75rem;
+      border-radius: var(--pico-border-radius); font-size: 0.85rem;
+      margin-top: 0.5rem; display: none;
+    }
   </style>
 </head>
 <body>
@@ -109,6 +115,7 @@
     <div class="mode-toggle">
       <button id="mode-json" class="outline">JSON Upload</button>
       <button id="mode-text">Freitext</button>
+      <button id="mode-file" class="outline">Datei Upload</button>
     </div>
 
     <!-- JSON Upload -->
@@ -136,6 +143,27 @@
         <option value="other">Sonstiges</option>
       </select>
       <button id="uploadTextBtn" style="width:100%">Dokument hochladen</button>
+    </div>
+
+    <!-- Datei Upload -->
+    <div id="doc-file" style="display:none">
+      <div class="upload-area" id="fileDropZone">
+        <p><strong>PDF, TXT oder MD-Datei hierher ziehen</strong></p>
+        <p style="font-size:0.85rem; color:var(--pico-muted-color)">oder klicken zum Auswählen (.pdf, .txt, .md)</p>
+        <input type="file" id="fileUploadInput" accept=".pdf,.txt,.md,.markdown">
+        <p id="fileUploadName" style="font-size:0.85rem; margin-top:0.5rem"></p>
+        <div id="fileSizeWarning" class="file-warning">Die Datei ist größer als 5 MB. Der Upload kann länger dauern.</div>
+      </div>
+      <label for="fileTitle" style="margin-top:1rem">Titel (optional, Default: Dateiname)</label>
+      <input type="text" id="fileTitle" placeholder="z.B. Vereinssatzung">
+      <label for="fileDocType">Dokumenttyp</label>
+      <select id="fileDocType">
+        <option value="manual">Handbuch / Doku</option>
+        <option value="faq">FAQ</option>
+        <option value="document">Dokument</option>
+        <option value="other">Sonstiges</option>
+      </select>
+      <button id="uploadFileBtn" style="width:100%">Datei hochladen</button>
     </div>
 
     <div id="docLog" class="log"></div>
@@ -187,7 +215,8 @@
     const ENDPOINTS = {
       ingest: `${N8N_BASE}/ngo-tools-ingest`,
       crawl: `${N8N_BASE}/ngo-tools-crawl`,
-      status: `${N8N_BASE}/ngo-tools-kb-status`
+      status: `${N8N_BASE}/ngo-tools-kb-status`,
+      fileUpload: `${N8N_BASE}/ngo-tools-file-upload`
     };
 
     // ---- API Key Management ----
@@ -219,25 +248,34 @@
     // ---- Document Mode Toggle ----
     const modeJson = document.getElementById('mode-json');
     const modeText = document.getElementById('mode-text');
+    const modeFile = document.getElementById('mode-file');
     const docJson = document.getElementById('doc-json');
     const docText = document.getElementById('doc-text');
+    const docFile = document.getElementById('doc-file');
 
     function setDocMode(mode) {
+      modeJson.classList.add('outline');
+      modeText.classList.add('outline');
+      modeFile.classList.add('outline');
+      docJson.style.display = 'none';
+      docText.style.display = 'none';
+      docFile.style.display = 'none';
+
       if (mode === 'json') {
         modeJson.classList.remove('outline');
-        modeText.classList.add('outline');
         docJson.style.display = 'block';
-        docText.style.display = 'none';
+      } else if (mode === 'file') {
+        modeFile.classList.remove('outline');
+        docFile.style.display = 'block';
       } else {
         modeText.classList.remove('outline');
-        modeJson.classList.add('outline');
-        docJson.style.display = 'none';
         docText.style.display = 'block';
       }
     }
 
     modeJson.addEventListener('click', () => setDocMode('json'));
     modeText.addEventListener('click', () => setDocMode('text'));
+    modeFile.addEventListener('click', () => setDocMode('file'));
     setDocMode('text');
 
     // ---- Logging ----
@@ -376,6 +414,107 @@
       }
     });
 
+    // ---- File Upload (PDF/TXT/MD) ----
+    const fileDropZone = document.getElementById('fileDropZone');
+    const fileUploadInput = document.getElementById('fileUploadInput');
+    const fileUploadName = document.getElementById('fileUploadName');
+    const fileSizeWarning = document.getElementById('fileSizeWarning');
+    let selectedUploadFile = null;
+
+    fileDropZone.addEventListener('click', () => fileUploadInput.click());
+    fileDropZone.addEventListener('dragover', (e) => { e.preventDefault(); fileDropZone.classList.add('dragover'); });
+    fileDropZone.addEventListener('dragleave', () => fileDropZone.classList.remove('dragover'));
+    fileDropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      fileDropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length) handleFileSelect(e.dataTransfer.files[0]);
+    });
+    fileUploadInput.addEventListener('change', () => {
+      if (fileUploadInput.files.length) handleFileSelect(fileUploadInput.files[0]);
+    });
+
+    function handleFileSelect(file) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (!['pdf', 'txt', 'md', 'markdown'].includes(ext)) {
+        log('docLog', `Nicht unterstütztes Format: .${ext}. Erlaubt: PDF, TXT, MD`);
+        return;
+      }
+      selectedUploadFile = file;
+      fileUploadName.textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+      fileSizeWarning.style.display = file.size > 5 * 1024 * 1024 ? 'block' : 'none';
+    }
+
+    // Extract text from PDF using pdf.js (client-side)
+    async function extractPdfText(file) {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const pages = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        const text = content.items.map(item => item.str).join(' ');
+        pages.push(text);
+      }
+      return pages.join('\n\n');
+    }
+
+    document.getElementById('uploadFileBtn').addEventListener('click', async () => {
+      if (!selectedUploadFile) { log('docLog', 'Keine Datei ausgewählt.'); return; }
+
+      const btn = document.getElementById('uploadFileBtn');
+      btn.setAttribute('aria-busy', 'true');
+      btn.disabled = true;
+
+      try {
+        const ext = selectedUploadFile.name.split('.').pop().toLowerCase();
+        const title = document.getElementById('fileTitle').value.trim() || selectedUploadFile.name.replace(/\.[^.]+$/, '');
+        const docType = document.getElementById('fileDocType').value;
+        const source = `file:${selectedUploadFile.name}`;
+
+        log('docLog', `Lese "${selectedUploadFile.name}"...`);
+
+        // Extract text client-side
+        let content = '';
+        if (ext === 'pdf') {
+          log('docLog', 'PDF wird im Browser geparst...');
+          content = await extractPdfText(selectedUploadFile);
+        } else {
+          // TXT / MD — read as text
+          content = await selectedUploadFile.text();
+        }
+
+        if (!content.trim()) {
+          log('docLog', 'Fehler: Kein Text extrahiert. Bei PDFs: nur text-basierte PDFs werden unterstützt (kein OCR).');
+          return;
+        }
+
+        log('docLog', `${content.length} Zeichen extrahiert. Sende an Ingestion...`);
+
+        // Send as document to the existing ingest endpoint
+        const doc = { title, content, doc_type: docType, source };
+        const resp = await fetch(ENDPOINTS.ingest, {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify({ documents: [doc] })
+        });
+
+        if (resp.ok) {
+          log('docLog', `"${selectedUploadFile.name}" erfolgreich hochgeladen.`);
+          selectedUploadFile = null;
+          fileUploadName.textContent = '';
+          fileSizeWarning.style.display = 'none';
+          document.getElementById('fileTitle').value = '';
+        } else {
+          log('docLog', `Fehler: ${resp.status} ${resp.statusText}`);
+        }
+      } catch (e) {
+        log('docLog', `Fehler: ${e.message}`);
+      } finally {
+        btn.removeAttribute('aria-busy');
+        btn.disabled = false;
+      }
+    });
+
     // ---- Status ----
     document.getElementById('refreshStatus').addEventListener('click', loadStatus);
 
@@ -385,9 +524,10 @@
       btn.disabled = true;
 
       try {
-        const resp = await fetch(ENDPOINTS.status, {
-          headers: getHeaders()
-        });
+        const headers = {};
+        const key = apiKeyInput.value;
+        if (key) headers['X-API-Key'] = key;
+        const resp = await fetch(ENDPOINTS.status, { headers });
 
         if (!resp.ok) {
           log('statusLog', `Fehler: ${resp.status} ${resp.statusText}`);

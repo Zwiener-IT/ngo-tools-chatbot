@@ -1,0 +1,309 @@
+{
+  "name": "NGO.tools File Upload",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ngo-tools-file-upload",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "webhook-file",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-200, 0],
+      "webhookId": "ngo-tools-file-upload"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Detect file format and extract text content\nconst binary = $binary;\n\nif (!binary || !binary.file) {\n  throw new Error('No file uploaded. Send multipart/form-data with field name \"file\".');\n}\n\nconst file = binary.file;\nconst fileName = file.fileName || 'unknown';\nconst mimeType = file.mimeType || '';\nconst ext = fileName.split('.').pop().toLowerCase();\n\n// Determine format\nlet format = 'unknown';\nif (ext === 'pdf' || mimeType === 'application/pdf') {\n  format = 'pdf';\n} else if (ext === 'txt' || mimeType === 'text/plain') {\n  format = 'txt';\n} else if (ext === 'md' || ext === 'markdown' || mimeType === 'text/markdown') {\n  format = 'md';\n}\n\nif (format === 'unknown') {\n  throw new Error(`Unsupported file format: .${ext} (${mimeType}). Supported: PDF, TXT, MD`);\n}\n\n// Get form fields\nconst body = $json.body || $json;\nconst title = body.title || fileName.replace(/\\.[^.]+$/, '');\nconst docType = body.doc_type || 'document';\n\nreturn {\n  json: {\n    format,\n    fileName,\n    title,\n    doc_type: docType,\n    source: `file:${fileName}`\n  },\n  binary: binary\n};"
+      },
+      "id": "detect-format",
+      "name": "Detect Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [40, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.format }}",
+              "rightValue": "pdf",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "if-pdf",
+      "name": "Is PDF?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [280, 0]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "file"
+      },
+      "id": "read-pdf",
+      "name": "Read PDF",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [520, -100]
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "binaryPropertyName": "file"
+      },
+      "id": "read-text",
+      "name": "Read Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [520, 100]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Merge extracted text with metadata from Detect Format\nconst item = $input.first().json;\nconst text = item.text || item.data || '';\nconst meta = $('Detect Format').first().json;\n\nconst content = text;\nconst title = meta.title || 'Untitled';\nconst source = meta.source || '';\nconst docType = meta.doc_type || 'document';\nconst fileName = meta.fileName || '';\n\nif (!content.trim()) {\n  throw new Error(`No text content extracted from ${fileName}. The file may be empty or a scanned PDF (OCR not supported).`);\n}\n\nreturn [{\n  json: {\n    data: JSON.stringify({\n      content: content,\n      title: title,\n      source: source,\n      doc_type: docType,\n      entity_name: ''\n    }),\n    metadata_title: title,\n    metadata_source: source,\n    metadata_doc_type: docType,\n    metadata_entity_name: '',\n    source: source\n  }\n}];"
+      },
+      "id": "prepare-content",
+      "name": "Prepare Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM n8n_vectors_ngo_tools WHERE metadata->>'source' = '{{ $json.source }}'"
+      },
+      "id": "delete-existing-file",
+      "name": "Delete Existing",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1000, -200],
+      "credentials": {
+        "postgres": {
+          "id": "sd9vc72XPsJhxW8I",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 1,
+        "unit": "seconds"
+      },
+      "id": "wait-for-delete-file",
+      "name": "Wait for Delete",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1000, 0]
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "tableName": "n8n_vectors_ngo_tools",
+        "options": {}
+      },
+      "id": "vectorstore-file",
+      "name": "Store in PGVector",
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
+      "typeVersion": 1,
+      "position": [1240, 0],
+      "credentials": {
+        "postgres": {
+          "id": "sd9vc72XPsJhxW8I",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              { "name": "title", "value": "={{ $json.metadata_title }}" },
+              { "name": "source", "value": "={{ $json.metadata_source }}" },
+              { "name": "doc_type", "value": "={{ $json.metadata_doc_type }}" },
+              { "name": "entity_name", "value": "={{ $json.metadata_entity_name }}" }
+            ]
+          }
+        }
+      },
+      "id": "doc-loader-file",
+      "name": "Default Data Loader",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1,
+      "position": [1040, 200]
+    },
+    {
+      "parameters": {
+        "model": "text-embedding-3-small",
+        "options": {}
+      },
+      "id": "embedding-file",
+      "name": "OpenAI Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1,
+      "position": [1240, 280],
+      "credentials": {
+        "openAiApi": {
+          "id": "XhcWlA6JrLM2ptmU",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chunkSize": 1000,
+        "chunkOverlap": 200,
+        "options": {}
+      },
+      "id": "text-splitter-file",
+      "name": "Recursive Text Splitter",
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [840, 320]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Detect Format",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Format": {
+      "main": [
+        [
+          {
+            "node": "Is PDF?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is PDF?": {
+      "main": [
+        [
+          {
+            "node": "Read PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read PDF": {
+      "main": [
+        [
+          {
+            "node": "Prepare Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Text": {
+      "main": [
+        [
+          {
+            "node": "Prepare Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Content": {
+      "main": [
+        [
+          {
+            "node": "Delete Existing",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Wait for Delete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Delete": {
+      "main": [
+        [
+          {
+            "node": "Store in PGVector",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Store in PGVector",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Store in PGVector",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    { "name": "NGO.tools" },
+    { "name": "FileUpload" }
+  ]
+}

@@ -17,13 +17,41 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// Extract documents from webhook body and prepare for Document Loader\nconst body = $input.first().json.body || $input.first().json;\nconst docs = body.documents || [];\nconst items = [];\n\nfor (const doc of docs) {\n  const docJson = {\n    content: doc.content || '',\n    title: doc.title || 'Untitled',\n    source: doc.route_uri || doc.file_path || '',\n    doc_type: doc.doc_type || 'unknown',\n    entity_name: doc.entity_name || ''\n  };\n  \n  items.push({\n    json: {\n      data: JSON.stringify(docJson),\n      metadata_title: doc.title || 'Untitled',\n      metadata_source: doc.route_uri || doc.file_path || '',\n      metadata_doc_type: doc.doc_type || 'unknown',\n      metadata_entity_name: doc.entity_name || ''\n    }\n  });\n}\n\nreturn items;"
+        "jsCode": "// Extract documents from webhook body and prepare for Document Loader\nconst body = $input.first().json.body || $input.first().json;\nconst docs = body.documents || [];\nconst items = [];\n\nfor (const doc of docs) {\n  const source = doc.route_uri || doc.source || doc.file_path || `manual:${doc.title || 'untitled'}`;\n  \n  items.push({\n    json: {\n      data: JSON.stringify({\n        content: doc.content || '',\n        title: doc.title || 'Untitled',\n        source: source,\n        doc_type: doc.doc_type || 'unknown',\n        entity_name: doc.entity_name || ''\n      }),\n      metadata_title: doc.title || 'Untitled',\n      metadata_source: source,\n      metadata_doc_type: doc.doc_type || 'unknown',\n      metadata_entity_name: doc.entity_name || ''\n    }\n  });\n}\n\nreturn items;"
       },
       "id": "code-format-001",
       "name": "Format Documents",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [160, -16]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM n8n_vectors_ngo_tools WHERE metadata->>'source' = '{{ $json.metadata_source }}'"
+      },
+      "id": "delete-existing-001",
+      "name": "Delete Existing",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [400, -200],
+      "credentials": {
+        "postgres": {
+          "id": "sd9vc72XPsJhxW8I",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 1,
+        "unit": "seconds"
+      },
+      "id": "wait-for-delete-001",
+      "name": "Wait for Delete",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [400, -16]
     },
     {
       "parameters": {
@@ -35,7 +63,7 @@
       "name": "Store in PGVector",
       "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
       "typeVersion": 1,
-      "position": [480, -16],
+      "position": [640, -16],
       "credentials": {
         "postgres": {
           "id": "sd9vc72XPsJhxW8I",
@@ -45,8 +73,6 @@
     },
     {
       "parameters": {
-        "dataType": "json",
-        "jsonData": "={{ $json.data }}",
         "options": {
           "metadata": {
             "metadataValues": [
@@ -62,7 +88,7 @@
       "name": "Default Data Loader",
       "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
       "typeVersion": 1,
-      "position": [280, 200]
+      "position": [440, 200]
     },
     {
       "parameters": {
@@ -73,7 +99,7 @@
       "name": "OpenAI Embeddings",
       "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
       "typeVersion": 1,
-      "position": [480, 272],
+      "position": [640, 272],
       "credentials": {
         "openAiApi": {
           "id": "XhcWlA6JrLM2ptmU",
@@ -91,7 +117,7 @@
       "name": "Recursive Text Splitter",
       "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
       "typeVersion": 1,
-      "position": [80, 320]
+      "position": [240, 320]
     }
   ],
   "connections": {
@@ -107,6 +133,22 @@
       ]
     },
     "Format Documents": {
+      "main": [
+        [
+          {
+            "node": "Delete Existing",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Wait for Delete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Delete": {
       "main": [
         [
           {

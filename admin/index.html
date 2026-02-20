@@ -201,7 +201,7 @@
     <div style="max-height:400px; overflow-y:auto">
       <table class="source-table">
         <thead>
-          <tr><th>Titel</th><th>Typ</th><th>Chunks</th><th>Quelle</th></tr>
+          <tr><th>Titel</th><th>Typ</th><th>Chunks</th><th>Quelle</th><th></th></tr>
         </thead>
         <tbody id="statusTable"></tbody>
       </table>
@@ -216,7 +216,7 @@
       ingest: `${N8N_BASE}/ngo-tools-ingest`,
       crawl: `${N8N_BASE}/ngo-tools-crawl`,
       status: `${N8N_BASE}/ngo-tools-kb-status`,
-      fileUpload: `${N8N_BASE}/ngo-tools-file-upload`
+      delete: `${N8N_BASE}/ngo-tools-kb-delete`
     };
 
     // ---- API Key Management ----
@@ -554,9 +554,36 @@
             <td>${d.chunks || 0}</td>
             <td style="font-size:0.8rem; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap"
                 title="${escHtml(d.source || '')}">${escHtml(d.source || '-')}</td>
+            <td><button class="outline delete-btn" data-source="${escHtml(d.source || '')}" style="padding:0.25rem 0.5rem; font-size:0.75rem; margin:0">X</button></td>
           `;
           tbody.appendChild(tr);
         }
+
+        // Attach delete handlers
+        tbody.querySelectorAll('.delete-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const source = btn.dataset.source;
+            if (!confirm(`"${source}" wirklich löschen? Alle Chunks werden entfernt.`)) return;
+            btn.setAttribute('aria-busy', 'true');
+            btn.disabled = true;
+            try {
+              const resp = await fetch(ENDPOINTS.delete, {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify({ source })
+              });
+              if (resp.ok) {
+                log('statusLog', `"${source}" gelöscht.`);
+                btn.closest('tr').remove();
+                loadStatus();
+              } else {
+                log('statusLog', `Fehler beim Löschen: ${resp.status}`);
+              }
+            } catch (e) {
+              log('statusLog', `Fehler: ${e.message}`);
+            }
+          });
+        });
 
         log('statusLog', `Status geladen: ${data.total_chunks} Chunks, ${data.unique_sources} Quellen.`);
       } catch (e) {

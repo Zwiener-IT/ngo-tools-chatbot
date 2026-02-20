@@ -1,4 +1,5 @@
 {
+  "_comment": "Workflow: NGO.tools KB Delete | n8n ID: wfgok310jJzLs67L | Webhook: /webhook/ngo-tools-kb-delete (POST)",
   "name": "NGO.tools KB Delete",
   "nodes": [
     {

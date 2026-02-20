@@ -90,6 +90,17 @@
       border-radius: var(--pico-border-radius); font-size: 0.85rem;
       margin-top: 0.5rem; display: none;
     }
+    .filter-bar {
+      display: flex; gap: 0.5rem; margin-bottom: 1rem; align-items: center;
+    }
+    .filter-bar input, .filter-bar select { margin: 0; }
+    .filter-bar input { flex: 1; }
+    .filter-bar select { width: auto; min-width: 140px; }
+    .source-table th.sortable {
+      cursor: pointer; user-select: none; white-space: nowrap;
+    }
+    .source-table th.sortable:hover { color: var(--pico-primary); }
+    .sort-indicator { font-size: 0.7rem; margin-left: 0.25rem; }
   </style>
 </head>
 <body>
@@ -198,10 +209,23 @@
         <div class="label">Dokumenttypen</div>
       </div>
     </div>
+    <div class="filter-bar">
+      <input type="search" id="statusSearch" placeholder="Suche nach Titel, Quelle..." style="margin:0">
+      <select id="statusTypeFilter" style="margin:0">
+        <option value="">Alle Typen</option>
+      </select>
+    </div>
     <div style="max-height:400px; overflow-y:auto">
       <table class="source-table">
         <thead>
-          <tr><th>Titel</th><th>Typ</th><th>Chunks</th><th>Quelle</th><th></th></tr>
+          <tr>
+            <th class="sortable" data-sort="title">Titel <span class="sort-indicator"></span></th>
+            <th class="sortable" data-sort="doc_type">Typ <span class="sort-indicator"></span></th>
+            <th class="sortable" data-sort="chunks">Chunks <span class="sort-indicator"></span></th>
+            <th class="sortable" data-sort="ingested_at">Datum <span class="sort-indicator">▼</span></th>
+            <th>Quelle</th>
+            <th></th>
+          </tr>
         </thead>
         <tbody id="statusTable"></tbody>
       </table>
@@ -330,7 +354,8 @@
         });
 
         if (resp.ok) {
-          log('docLog', `Upload erfolgreich (${resp.status}).`);
+          log('docLog', `Upload erfolgreich (${resp.status}). Wechsle zum Status...`);
+          switchToStatusTab();
         } else {
           log('docLog', `Fehler: ${resp.status} ${resp.statusText}`);
         }
@@ -365,9 +390,10 @@
         });
 
         if (resp.ok) {
-          log('docLog', `"${title}" erfolgreich hochgeladen.`);
+          log('docLog', `"${title}" erfolgreich hochgeladen. Wechsle zum Status...`);
           document.getElementById('docTitle').value = '';
           document.getElementById('docContent').value = '';
+          switchToStatusTab();
         } else {
           log('docLog', `Fehler: ${resp.status} ${resp.statusText}`);
         }
@@ -402,7 +428,8 @@
         if (resp.ok) {
           const data = await resp.json();
           log('crawlLog', `Gestartet! ${data.message || 'Workflow läuft im Hintergrund.'}`);
-          log('crawlLog', 'Tipp: Prüfe den Status-Tab um den Fortschritt zu sehen.');
+          log('crawlLog', 'Wechsle zum Status-Tab...');
+          switchToStatusTab();
         } else {
           log('crawlLog', `Fehler: ${resp.status} ${resp.statusText}`);
         }
@@ -499,11 +526,12 @@
         });
 
         if (resp.ok) {
-          log('docLog', `"${selectedUploadFile.name}" erfolgreich hochgeladen.`);
+          log('docLog', `"${selectedUploadFile.name}" erfolgreich hochgeladen. Wechsle zum Status...`);
           selectedUploadFile = null;
           fileUploadName.textContent = '';
           fileSizeWarning.style.display = 'none';
           document.getElementById('fileTitle').value = '';
+          switchToStatusTab();
         } else {
           log('docLog', `Fehler: ${resp.status} ${resp.statusText}`);
         }
@@ -516,9 +544,138 @@
     });
 
     // ---- Status ----
-    document.getElementById('refreshStatus').addEventListener('click', loadStatus);
+    let statusData = []; // cached details for sort/filter
+    let sortCol = 'ingested_at';
+    let sortAsc = false; // default: newest first
 
-    async function loadStatus() {
+    document.getElementById('refreshStatus').addEventListener('click', loadStatus);
+    document.getElementById('statusSearch').addEventListener('input', renderStatusTable);
+    document.getElementById('statusTypeFilter').addEventListener('change', renderStatusTable);
+
+    // Sortable column headers
+    document.querySelectorAll('.source-table th.sortable').forEach(th => {
+      th.addEventListener('click', () => {
+        const col = th.dataset.sort;
+        if (sortCol === col) {
+          sortAsc = !sortAsc;
+        } else {
+          sortCol = col;
+          sortAsc = col === 'title' || col === 'doc_type'; // text asc, numbers/dates desc
+        }
+        renderStatusTable();
+      });
+    });
+
+    function formatDate(isoStr) {
+      if (!isoStr) return '-';
+      const d = new Date(isoStr);
+      if (isNaN(d.getTime())) return '-';
+      const now = new Date();
+      const diffMs = now - d;
+      const diffMins = Math.floor(diffMs / 60000);
+      if (diffMins < 1) return 'gerade eben';
+      if (diffMins < 60) return `vor ${diffMins} Min.`;
+      const diffHours = Math.floor(diffMins / 60);
+      if (diffHours < 24) return `vor ${diffHours} Std.`;
+      const diffDays = Math.floor(diffHours / 24);
+      if (diffDays < 7) return `vor ${diffDays} Tag${diffDays > 1 ? 'en' : ''}`;
+      return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    }
+
+    function renderStatusTable() {
+      const query = document.getElementById('statusSearch').value.toLowerCase().trim();
+      const typeFilter = document.getElementById('statusTypeFilter').value;
+
+      // Filter
+      let filtered = statusData.filter(d => {
+        if (typeFilter && d.doc_type !== typeFilter) return false;
+        if (query) {
+          const haystack = `${d.title || ''} ${d.source || ''}`.toLowerCase();
+          if (!haystack.includes(query)) return false;
+        }
+        return true;
+      });
+
+      // Sort
+      filtered.sort((a, b) => {
+        let va = a[sortCol], vb = b[sortCol];
+        if (sortCol === 'chunks') {
+          va = parseInt(va) || 0; vb = parseInt(vb) || 0;
+        } else if (sortCol === 'ingested_at') {
+          va = va || ''; vb = vb || '';
+        } else {
+          va = (va || '').toLowerCase(); vb = (vb || '').toLowerCase();
+        }
+        if (va < vb) return sortAsc ? -1 : 1;
+        if (va > vb) return sortAsc ? 1 : -1;
+        return 0;
+      });
+
+      // Update sort indicators
+      document.querySelectorAll('.source-table th.sortable').forEach(th => {
+        const indicator = th.querySelector('.sort-indicator');
+        if (th.dataset.sort === sortCol) {
+          indicator.textContent = sortAsc ? '▲' : '▼';
+        } else {
+          indicator.textContent = '';
+        }
+      });
+
+      // Render rows
+      const tbody = document.getElementById('statusTable');
+      tbody.innerHTML = '';
+
+      for (const d of filtered) {
+        const tr = document.createElement('tr');
+        const badgeClass = d.doc_type === 'website' ? 'badge-website' :
+                           d.doc_type === 'admin' ? 'badge-admin' : 'badge-unknown';
+        const dateStr = formatDate(d.ingested_at);
+        const dateTitle = d.ingested_at ? new Date(d.ingested_at).toLocaleString('de-DE') : '';
+        tr.innerHTML = `
+          <td>${escHtml(d.title || '-')}</td>
+          <td><span class="badge ${badgeClass}">${escHtml(d.doc_type || '-')}</span></td>
+          <td>${d.chunks || 0}</td>
+          <td style="font-size:0.8rem; white-space:nowrap" title="${escHtml(dateTitle)}">${escHtml(dateStr)}</td>
+          <td style="font-size:0.8rem; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap"
+              title="${escHtml(d.source || '')}">${escHtml(d.source || '-')}</td>
+          <td><button class="delete-btn" data-source="${escHtml(d.source || '')}" style="padding:0.25rem 0.5rem; font-size:0.75rem; margin:0; background:#dc2626; color:#fff; border:none; border-radius:4px; cursor:pointer">X</button></td>
+        `;
+        tbody.appendChild(tr);
+      }
+
+      // Attach delete handlers
+      tbody.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const source = btn.dataset.source;
+          if (!confirm(`"${source}" wirklich löschen? Alle Chunks werden entfernt.`)) return;
+          btn.setAttribute('aria-busy', 'true');
+          btn.disabled = true;
+          try {
+            const resp = await fetch(ENDPOINTS.delete, {
+              method: 'POST',
+              headers: getHeaders(),
+              body: JSON.stringify({ source })
+            });
+            if (resp.ok) {
+              log('statusLog', `"${source}" gelöscht.`);
+              btn.closest('tr').remove();
+              loadStatus();
+            } else {
+              log('statusLog', `Fehler beim Löschen: ${resp.status}`);
+            }
+          } catch (e) {
+            log('statusLog', `Fehler: ${e.message}`);
+          }
+        });
+      });
+    }
+
+    let statusLoading = false;
+
+    async function loadStatus(retries = 0) {
+      if (statusLoading) return;
+      statusLoading = true;
+
       const btn = document.getElementById('refreshStatus');
       btn.setAttribute('aria-busy', 'true');
       btn.disabled = true;
@@ -540,58 +697,48 @@
         document.getElementById('statSources').textContent = data.unique_sources || 0;
         document.getElementById('statTypes').textContent = data.doc_types || 0;
 
-        const tbody = document.getElementById('statusTable');
-        tbody.innerHTML = '';
+        statusData = data.details || [];
 
-        const details = data.details || [];
-        for (const d of details) {
-          const tr = document.createElement('tr');
-          const badgeClass = d.doc_type === 'website' ? 'badge-website' :
-                             d.doc_type === 'admin' ? 'badge-admin' : 'badge-unknown';
-          tr.innerHTML = `
-            <td>${escHtml(d.title || '-')}</td>
-            <td><span class="badge ${badgeClass}">${escHtml(d.doc_type || '-')}</span></td>
-            <td>${d.chunks || 0}</td>
-            <td style="font-size:0.8rem; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap"
-                title="${escHtml(d.source || '')}">${escHtml(d.source || '-')}</td>
-            <td><button class="outline delete-btn" data-source="${escHtml(d.source || '')}" style="padding:0.25rem 0.5rem; font-size:0.75rem; margin:0">X</button></td>
-          `;
-          tbody.appendChild(tr);
+        // Populate type filter dropdown
+        const typeSelect = document.getElementById('statusTypeFilter');
+        const currentFilter = typeSelect.value;
+        const types = [...new Set(statusData.map(d => d.doc_type).filter(Boolean))].sort();
+        typeSelect.innerHTML = '<option value="">Alle Typen</option>';
+        for (const t of types) {
+          const opt = document.createElement('option');
+          opt.value = t; opt.textContent = t;
+          if (t === currentFilter) opt.selected = true;
+          typeSelect.appendChild(opt);
         }
 
-        // Attach delete handlers
-        tbody.querySelectorAll('.delete-btn').forEach(btn => {
-          btn.addEventListener('click', async () => {
-            const source = btn.dataset.source;
-            if (!confirm(`"${source}" wirklich löschen? Alle Chunks werden entfernt.`)) return;
-            btn.setAttribute('aria-busy', 'true');
-            btn.disabled = true;
-            try {
-              const resp = await fetch(ENDPOINTS.delete, {
-                method: 'POST',
-                headers: getHeaders(),
-                body: JSON.stringify({ source })
-              });
-              if (resp.ok) {
-                log('statusLog', `"${source}" gelöscht.`);
-                btn.closest('tr').remove();
-                loadStatus();
-              } else {
-                log('statusLog', `Fehler beim Löschen: ${resp.status}`);
-              }
-            } catch (e) {
-              log('statusLog', `Fehler: ${e.message}`);
-            }
-          });
-        });
-
+        renderStatusTable();
         log('statusLog', `Status geladen: ${data.total_chunks} Chunks, ${data.unique_sources} Quellen.`);
       } catch (e) {
+        if (retries < 2) {
+          const delay = (retries + 1) * 3000;
+          log('statusLog', `Status nicht erreichbar, neuer Versuch in ${delay / 1000}s...`);
+          statusLoading = false;
+          setTimeout(() => loadStatus(retries + 1), delay);
+          return;
+        }
         log('statusLog', `Fehler: ${e.message}`);
       } finally {
+        statusLoading = false;
         btn.removeAttribute('aria-busy');
         btn.disabled = false;
       }
+    }
+
+    // ---- Feedback Loop: Switch to Status tab after upload ----
+    function switchToStatusTab() {
+      // Switch tab immediately, load status after delay (n8n needs time to process)
+      document.querySelectorAll('nav[role="tablist"] button').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      const statusBtn = document.querySelector('nav[role="tablist"] button[data-tab="status"]');
+      statusBtn.classList.add('active');
+      document.getElementById('tab-status').classList.add('active');
+      log('statusLog', 'Ingestion läuft... Status wird in 5s geladen.');
+      setTimeout(() => loadStatus(), 5000);
     }
 
     function escHtml(str) {

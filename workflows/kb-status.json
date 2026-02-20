@@ -1,4 +1,5 @@
 {
+  "_comment": "Workflow: NGO.tools KB Status | n8n ID: 0NWL8G87JV7AylSf | Webhook: /webhook/ngo-tools-kb-status (GET)",
   "name": "NGO.tools KB Status",
   "nodes": [
     {
@@ -41,7 +42,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT metadata->>'title' as title, metadata->>'source' as source, metadata->>'doc_type' as doc_type, COUNT(*) as chunks FROM n8n_vectors_ngo_tools GROUP BY metadata->>'title', metadata->>'source', metadata->>'doc_type' ORDER BY doc_type, title"
+        "query": "SELECT metadata->>'title' as title, metadata->>'source' as source, metadata->>'doc_type' as doc_type, MAX(metadata->>'ingested_at') as ingested_at, COUNT(*) as chunks FROM n8n_vectors_ngo_tools GROUP BY metadata->>'title', metadata->>'source', metadata->>'doc_type' ORDER BY MAX(metadata->>'ingested_at') DESC NULLS LAST"
       },
       "id": "detail-query",
       "name": "Detail Query",
@@ -61,7 +62,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const summary = $('Summary Query').first().json;\nconst details = $('Detail Query').all().map(item => item.json);\n\nconst byType = {};\nfor (const d of details) {\n  const type = d.doc_type || 'unknown';\n  if (!byType[type]) byType[type] = { count: 0, sources: [] };\n  byType[type].count += parseInt(d.chunks) || 0;\n  byType[type].sources.push({ title: d.title, source: d.source, chunks: parseInt(d.chunks) || 0 });\n}\n\nreturn [{ json: { total_chunks: parseInt(summary.total_chunks) || 0, unique_sources: parseInt(summary.unique_sources) || 0, doc_types: parseInt(summary.doc_types) || 0, by_type: byType, details: details } }];"
+        "jsCode": "const summary = $('Summary Query').first().json;\nconst details = $('Detail Query').all().map(item => item.json);\n\nconst byType = {};\nfor (const d of details) {\n  const type = d.doc_type || 'unknown';\n  if (!byType[type]) byType[type] = { count: 0, sources: [] };\n  byType[type].count += parseInt(d.chunks) || 0;\n  byType[type].sources.push({ title: d.title, source: d.source, chunks: parseInt(d.chunks) || 0, ingested_at: d.ingested_at || null });\n}\n\nreturn [{ json: { total_chunks: parseInt(summary.total_chunks) || 0, unique_sources: parseInt(summary.unique_sources) || 0, doc_types: parseInt(summary.doc_types) || 0, by_type: byType, details: details } }];"
       },
       "id": "combine-results",
       "name": "Combine Results",

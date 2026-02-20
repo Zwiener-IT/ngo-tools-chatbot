@@ -13,3 +13,6 @@ Thumbs.db
 # Credentials (NEVER commit!)
 *.token
 credentials.json
+
+# Legacy data (large generated files)
+data/ngo_docs.json

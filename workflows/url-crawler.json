@@ -1,4 +1,5 @@
 {
+  "_comment": "Workflow: NGO.tools URL Crawler | n8n ID: 8J4wxj2UuFmpXpKY | Webhook: /webhook/ngo-tools-crawl (POST)",
   "name": "NGO.tools URL Crawler",
   "nodes": [
     {
@@ -116,7 +117,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const html = $json.data || '';\nconst url = $json.url || '';\n\nlet cleaned = html\n  .replace(/<script[^>]*>[\\s\\S]*?<\\/script>/gi, '')\n  .replace(/<style[^>]*>[\\s\\S]*?<\\/style>/gi, '')\n  .replace(/<nav[^>]*>[\\s\\S]*?<\\/nav>/gi, '')\n  .replace(/<footer[^>]*>[\\s\\S]*?<\\/footer>/gi, '')\n  .replace(/<header[^>]*>[\\s\\S]*?<\\/header>/gi, '')\n  .replace(/<noscript[^>]*>[\\s\\S]*?<\\/noscript>/gi, '')\n  .replace(/<svg[^>]*>[\\s\\S]*?<\\/svg>/gi, '')\n  .replace(/<!--[\\s\\S]*?-->/g, '');\n\nlet title = '';\nconst titleMatch = cleaned.match(/<title[^>]*>([^<]+)<\\/title>/i);\nif (titleMatch) title = titleMatch[1].trim();\n\nlet description = '';\nconst metaMatch = cleaned.match(/<meta[^>]*name=[\"']description[\"'][^>]*content=[\"']([^\"']+)[\"']/i);\nif (metaMatch) description = metaMatch[1].trim();\n\ncleaned = cleaned\n  .replace(/<br\\s*\\/?>/gi, '\\n')\n  .replace(/<\\/p>/gi, '\\n\\n')\n  .replace(/<\\/div>/gi, '\\n')\n  .replace(/<\\/h[1-6]>/gi, '\\n\\n')\n  .replace(/<\\/li>/gi, '\\n')\n  .replace(/<li[^>]*>/gi, '- ')\n  .replace(/<[^>]+>/g, '')\n  .replace(/&nbsp;/g, ' ')\n  .replace(/&amp;/g, '&')\n  .replace(/&lt;/g, '<')\n  .replace(/&gt;/g, '>')\n  .replace(/&quot;/g, '\"')\n  .replace(/&#39;/g, \"'\")\n  .replace(/\\n{3,}/g, '\\n\\n')\n  .replace(/[ \\t]+/g, ' ')\n  .trim();\n\nconst content = (title ? `# ${title}\\n\\n` : '') + (description ? `${description}\\n\\n` : '') + cleaned;\n\nreturn {\n  json: {\n    data: JSON.stringify({ content, title: title || url, source: url, doc_type: 'website', entity_name: 'ngo.tools' }),\n    metadata_title: title || url,\n    metadata_source: url,\n    metadata_doc_type: 'website',\n    metadata_entity_name: 'ngo.tools',\n    url: url\n  }\n};"
+        "jsCode": "const html = $json.data || '';\nconst url = $json.url || '';\n\nlet cleaned = html\n  .replace(/<script[^>]*>[\\s\\S]*?<\\/script>/gi, '')\n  .replace(/<style[^>]*>[\\s\\S]*?<\\/style>/gi, '')\n  .replace(/<nav[^>]*>[\\s\\S]*?<\\/nav>/gi, '')\n  .replace(/<footer[^>]*>[\\s\\S]*?<\\/footer>/gi, '')\n  .replace(/<header[^>]*>[\\s\\S]*?<\\/header>/gi, '')\n  .replace(/<noscript[^>]*>[\\s\\S]*?<\\/noscript>/gi, '')\n  .replace(/<svg[^>]*>[\\s\\S]*?<\\/svg>/gi, '')\n  .replace(/<!--[\\s\\S]*?-->/g, '');\n\nlet title = '';\nconst titleMatch = cleaned.match(/<title[^>]*>([^<]+)<\\/title>/i);\nif (titleMatch) title = titleMatch[1].trim();\n\nlet description = '';\nconst metaMatch = cleaned.match(/<meta[^>]*name=[\"']description[\"'][^>]*content=[\"']([^\"']+)[\"']/i);\nif (metaMatch) description = metaMatch[1].trim();\n\ncleaned = cleaned\n  .replace(/<br\\s*\\/?>/gi, '\\n')\n  .replace(/<\\/p>/gi, '\\n\\n')\n  .replace(/<\\/div>/gi, '\\n')\n  .replace(/<\\/h[1-6]>/gi, '\\n\\n')\n  .replace(/<\\/li>/gi, '\\n')\n  .replace(/<li[^>]*>/gi, '- ')\n  .replace(/<[^>]+>/g, '')\n  .replace(/&nbsp;/g, ' ')\n  .replace(/&amp;/g, '&')\n  .replace(/&lt;/g, '<')\n  .replace(/&gt;/g, '>')\n  .replace(/&quot;/g, '\"')\n  .replace(/&#39;/g, \"'\")\n  .replace(/\\n{3,}/g, '\\n\\n')\n  .replace(/[ \\t]+/g, ' ')\n  .trim();\n\nconst content = (title ? `# ${title}\\n\\n` : '') + (description ? `${description}\\n\\n` : '') + cleaned;\n\nreturn {\n  json: {\n    data: JSON.stringify({ content, title: title || url, source: url, doc_type: 'website', entity_name: 'ngo.tools' }),\n    metadata_title: title || url,\n    metadata_source: url,\n    metadata_doc_type: 'website',\n    metadata_entity_name: 'ngo.tools',\n    metadata_ingested_at: new Date().toISOString(),\n    url: url\n  }\n};"
       },
       "id": "html-to-text",
       "name": "HTML to Text",
@@ -188,6 +189,10 @@
               {
                 "name": "entity_name",
                 "value": "={{ $json.metadata_entity_name }}"
+              },
+              {
+                "name": "ingested_at",
+                "value": "={{ $json.metadata_ingested_at }}"
               }
             ]
           }

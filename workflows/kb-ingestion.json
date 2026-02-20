@@ -1,4 +1,5 @@
 {
+  "_comment": "Workflow: NGO.tools KB Ingestion | n8n ID: D74o4IMPY9yNooJl | Webhook: /webhook/ngo-tools-ingest (POST)",
   "name": "NGO.tools Knowledge Base Ingestion",
   "nodes": [
     {
@@ -17,7 +18,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// Extract documents from webhook body and prepare for Document Loader\nconst body = $input.first().json.body || $input.first().json;\nconst docs = body.documents || [];\nconst items = [];\n\nfor (const doc of docs) {\n  const source = doc.route_uri || doc.source || doc.file_path || `manual:${doc.title || 'untitled'}`;\n  \n  items.push({\n    json: {\n      data: JSON.stringify({\n        content: doc.content || '',\n        title: doc.title || 'Untitled',\n        source: source,\n        doc_type: doc.doc_type || 'unknown',\n        entity_name: doc.entity_name || ''\n      }),\n      metadata_title: doc.title || 'Untitled',\n      metadata_source: source,\n      metadata_doc_type: doc.doc_type || 'unknown',\n      metadata_entity_name: doc.entity_name || ''\n    }\n  });\n}\n\nreturn items;"
+        "jsCode": "// Extract documents from webhook body and prepare for Document Loader\nconst body = $input.first().json.body || $input.first().json;\nconst docs = body.documents || [];\nconst items = [];\n\nfor (const doc of docs) {\n  const source = doc.route_uri || doc.source || doc.file_path || `manual:${doc.title || 'untitled'}`;\n  \n  items.push({\n    json: {\n      data: JSON.stringify({\n        content: doc.content || '',\n        title: doc.title || 'Untitled',\n        source: source,\n        doc_type: doc.doc_type || 'unknown',\n        entity_name: doc.entity_name || ''\n      }),\n      metadata_title: doc.title || 'Untitled',\n      metadata_source: source,\n      metadata_doc_type: doc.doc_type || 'unknown',\n      metadata_entity_name: doc.entity_name || '',\n      metadata_ingested_at: new Date().toISOString()\n    }\n  });\n}\n\nreturn items;"
       },
       "id": "code-format-001",
       "name": "Format Documents",
@@ -79,7 +80,8 @@
               { "name": "title", "value": "={{ $json.metadata_title }}" },
               { "name": "source", "value": "={{ $json.metadata_source }}" },
               { "name": "doc_type", "value": "={{ $json.metadata_doc_type }}" },
-              { "name": "entity_name", "value": "={{ $json.metadata_entity_name }}" }
+              { "name": "entity_name", "value": "={{ $json.metadata_entity_name }}" },
+              { "name": "ingested_at", "value": "={{ $json.metadata_ingested_at }}" }
             ]
           }
         }
@@ -193,11 +195,9 @@
       ]
     }
   },
-  "pinData": {},
   "settings": {
     "executionOrder": "v1"
   },
-  "staticData": null,
   "tags": [
     { "name": "NGO.tools" },
     { "name": "Ingestion" }

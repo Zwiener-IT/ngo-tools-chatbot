@@ -1,4 +1,5 @@
 {
+  "_comment": "Workflow: NGO.tools RAG Chatbot | n8n ID: PFI5UEgky9nN0U4j | Webhook: /webhook/ngo-tools-chat/chat",
   "name": "NGO.tools RAG Chatbot",
   "nodes": [
     {

@@ -8,9 +8,9 @@ DSGVO- & EU AI Act-konformer KI-Chatbot für [NGO.tools](https://ngo.tools) – 
 |-----------|------------|
 | Orchestrierung | n8n (Self-Hosted auf Cloudron) |
 | Vektor-DB | PostgreSQL + pgvector (Cloudron Addon) |
-| LLM | Google Gemini 2.0 Flash |
-| Embeddings | Google text-embedding-004 |
-| Frontend | @n8n/chat Widget |
+| LLM | OpenAI `gpt-4o-mini` |
+| Embeddings | OpenAI `text-embedding-3-small` |
+| Frontend | @n8n/chat Widget + Admin UI |
 | Hosting | Hetzner (DE) – komplett EU |
 
 ## Architektur
@@ -20,18 +20,26 @@ Website (ngo.tools)
   └── @n8n/chat Widget
         └── HTTPS Webhook
               └── n8n (Cloudron)
-                    ├── AI Agent (Gemini 2.0 Flash)
+                    ├── AI Agent (OpenAI gpt-4o-mini)
                     ├── PGVector Knowledge Base
-                    └── Window Buffer Memory
+                    └── Window Buffer Memory (10 Messages)
+
+Admin UI (admin/index.html)
+  ├── Dokumente hochladen → KB Ingestion Workflow
+  ├── URLs crawlen → URL Crawler Workflow
+  ├── Status abfragen → KB Status Workflow
+  └── Chunks löschen → KB Delete Workflow
 ```
 
 ## Workflows
 
-### 1. `workflows/chatbot-rag.json`
-Der Haupt-Chatbot – beantwortet Nutzerfragen basierend auf der Knowledge Base.
-
-### 2. `workflows/kb-ingestion.json`
-Befüllt die Vektor-Datenbank: Sitemap crawlen → HTML parsen → Chunking → Embeddings → pgvector.
+| # | Workflow | n8n ID | Lokale JSON | Beschreibung |
+|---|---------|--------|-------------|-------------|
+| 1 | RAG Chatbot | `PFI5UEgky9nN0U4j` | `workflows/chatbot-rag.json` | Haupt-Chatbot — beantwortet Nutzerfragen via RAG |
+| 2 | KB Ingestion | `D74o4IMPY9yNooJl` | `workflows/kb-ingestion.json` | Dokumente chunken + embedden → pgvector speichern |
+| 3 | URL Crawler | `8J4wxj2UuFmpXpKY` | `workflows/url-crawler.json` | Website crawlen (Sitemap oder Einzel-URL) + in KB speichern |
+| 4 | KB Status | `0NWL8G87JV7AylSf` | `workflows/kb-status.json` | Knowledge Base Statistiken (Chunks, Quellen, Typen) |
+| 5 | KB Delete | `wfgok310jJzLs67L` | `workflows/kb-delete.json` | Chunks nach Source aus KB löschen |
 
 ## Quick Start
 
@@ -40,18 +48,34 @@ Befüllt die Vektor-Datenbank: Sitemap crawlen → HTML parsen → Chunking → 
    CREATE EXTENSION IF NOT EXISTS vector;
    ```
 
-2. **Workflows importieren**
-   - n8n öffnen → Import from File → beide JSON-Dateien laden
-
-3. **Credentials konfigurieren**
-   - Google Gemini API Key
+2. **Credentials in n8n anlegen**
+   - OpenAI API Key
    - PostgreSQL Connection (Cloudron)
 
+3. **Workflows importieren**
+   - n8n → Import from File → alle 5 JSON-Dateien aus `workflows/` laden
+   - Oder: Admin UI unter `admin/index.html` öffnen für komfortablere Verwaltung
+
 4. **Knowledge Base befüllen**
-   - KB Ingestion Workflow manuell ausführen
+   - Admin UI → Tab "URL Crawlen" → Sitemap `https://ngo.tools/sitemap.xml` crawlen
+   - Oder: Tab "Dokumente" → Freitext/JSON/PDF hochladen
 
 5. **Widget einbetten**
    - HTML-Snippet aus `widget/embed.html` in die Website einfügen
+
+## Admin UI
+
+Die Admin UI (`admin/index.html`) bietet:
+- **Dokumente**: Freitext, JSON oder PDF/TXT/MD hochladen → automatische Ingestion
+- **URL Crawlen**: Sitemap oder Einzel-URLs crawlen → HTML → Text → Embeddings
+- **Status**: Übersicht aller KB-Einträge mit Suche, Filter, Sortierung + Löschen
+
+## Daten
+
+| Datei | Beschreibung |
+|-------|-------------|
+| `data/system-prompt.md` | System Prompt für den Chatbot (Single Source of Truth) |
+| `data/ngo-tools-docs.md` | Generierte Referenzdokumentation (~22k Zeilen) |
 
 ## Compliance
 
@@ -64,14 +88,14 @@ Befüllt die Vektor-Datenbank: Sitemap crawlen → HTML parsen → Chunking → 
 - Hosting komplett in DE (Hetzner)
 - Keine User-Tracking, Session-basiert
 - Datenschutzerklärung-Textbaustein in `docs/setup-guide.md`
-- AV-Vertrag mit Google erforderlich
+- AV-Vertrag mit OpenAI erforderlich
 
 ## Kosten
 
 | Posten | Kosten |
 |--------|--------|
-| Infrastruktur | 0€ (bestehender Cloudron-Server) |
-| Gemini API | ~5€/Monat (geschätzt für NGO-Traffic) |
+| Infrastruktur | 0 EUR (bestehender Cloudron-Server) |
+| OpenAI API | ~5 EUR/Monat (geschätzt für NGO-Traffic) |
 
 ## Dokumentation
 
